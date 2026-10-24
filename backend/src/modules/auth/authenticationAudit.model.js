@@ -11,6 +11,12 @@ export const AUTHENTICATION_EVENT_TYPES = Object.freeze([
   "AUTHENTICATION_REJECTED",
   "ACCESS_GRANT_CREATED",
   "ACCESS_GRANT_REVOKED",
+  "TICKET_CREATED",
+  "TICKET_CLAIMED",
+  "TICKET_WORK_STARTED",
+  "TICKET_PUBLIC_REPLY_ADDED",
+  "TICKET_RESOLVED",
+  "TICKET_CLOSED",
 ]);
 
 const authenticationAuditSchema = new Schema(
@@ -75,6 +81,18 @@ const authenticationAuditSchema = new Schema(
       immutable: true,
       default: null,
     },
+    ticket: {
+      type: Schema.Types.ObjectId,
+      ref: "Ticket",
+      immutable: true,
+      default: undefined,
+    },
+    ticketReference: {
+      type: String,
+      maxlength: 40,
+      immutable: true,
+      default: undefined,
+    },
     ipAddress: {
       type: String,
       maxlength: 64,
@@ -108,6 +126,10 @@ authenticationAuditSchema.index(
     expireAfterSeconds: sessionConfig.auditRetentionSeconds,
     name: "authentication_audit_retention_ttl",
   },
+);
+authenticationAuditSchema.index(
+  { organization: 1, ticket: 1, occurredAt: 1 },
+  { name: "authentication_audit_ticket_timeline" },
 );
 authenticationAuditSchema.index(
   { user: 1, occurredAt: -1 },

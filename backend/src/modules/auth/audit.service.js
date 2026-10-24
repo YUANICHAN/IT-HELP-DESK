@@ -12,6 +12,8 @@ function auditDocument(event) {
     accessGrant: event.accessGrant,
     capability: event.capability,
     department: event.department,
+    ticket: event.ticket,
+    ticketReference: event.ticketReference,
     ipAddress: event.ipAddress,
     client: event.client,
     occurredAt: new Date(),
