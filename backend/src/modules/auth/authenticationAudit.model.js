@@ -17,6 +17,10 @@ export const AUTHENTICATION_EVENT_TYPES = Object.freeze([
   "TICKET_PUBLIC_REPLY_ADDED",
   "TICKET_RESOLVED",
   "TICKET_CLOSED",
+  "TICKET_UPDATED", "TICKET_TRIAGED", "TICKET_ASSIGNED", "TICKET_WAITING", "TICKET_RESUMED",
+  "TICKET_CANCELLED", "TICKET_REOPENED", "TICKET_INTERNAL_NOTE_ADDED", "TICKET_WORKLOG_ADDED",
+  "TICKET_ATTACHMENT_RESERVED", "TICKET_ATTACHMENT_READY", "TICKET_ATTACHMENT_REJECTED", "TICKET_ATTACHMENT_DELETED",
+  "ASSET_CREATED", "ASSET_UPDATED", "ASSET_ASSIGNED", "ASSET_RETURNED", "ASSET_STATE_CHANGED",
 ]);
 
 const authenticationAuditSchema = new Schema(
@@ -93,6 +97,7 @@ const authenticationAuditSchema = new Schema(
       immutable: true,
       default: undefined,
     },
+    asset: { type: Schema.Types.ObjectId, ref: "Asset", immutable: true, default: undefined },
     ipAddress: {
       type: String,
       maxlength: 64,

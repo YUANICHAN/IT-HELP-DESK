@@ -14,6 +14,7 @@ function auditDocument(event) {
     department: event.department,
     ticket: event.ticket,
     ticketReference: event.ticketReference,
+    asset: event.asset,
     ipAddress: event.ipAddress,
     client: event.client,
     occurredAt: new Date(),

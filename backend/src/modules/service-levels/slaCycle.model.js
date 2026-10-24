@@ -10,7 +10,8 @@ const slaCycleSchema = new Schema(
     originalSubmittedAt: { type: Date, required: true, immutable: true },
     startedAt: { type: Date, required: true, immutable: true },
     endedAt: { type: Date, default: undefined },
-    endReason: { type: String, enum: ["RESOLVED"], default: undefined },
+    endReason: { type: String, enum: ["RESOLVED", "CANCELLED"], default: undefined },
+    firstResponseAt: { type: Date, default: undefined },
     configurationSnapshots: {
       service: { type: Schema.Types.Mixed, required: true, immutable: true },
       slaPolicy: { type: Schema.Types.Mixed, required: true, immutable: true },

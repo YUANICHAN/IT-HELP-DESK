@@ -9,9 +9,10 @@ export const TICKET_STATUSES = Object.freeze([
   "IN_PROGRESS",
   "RESOLVED",
   "CLOSED",
+  "WAITING_REQUESTER", "WAITING_VENDOR", "WAITING_APPROVAL", "REJECTED", "CANCELLED",
 ]);
 export const TICKET_URGENCIES = Object.freeze(["LOW", "MEDIUM", "HIGH"]);
-export const TICKET_PRIORITIES = Object.freeze(["P2", "P3", "P4"]);
+export const TICKET_PRIORITIES = Object.freeze(["P1", "P2", "P3", "P4"]);
 export const RESOLUTION_CODES = Object.freeze([
   "FIXED",
   "WORKAROUND",
@@ -87,24 +88,31 @@ const ticketSchema = new Schema(
       maxlength: 5000,
     },
     urgency: { type: String, required: true, enum: TICKET_URGENCIES },
-    impact: { type: String, required: true, enum: ["MEDIUM"], immutable: true },
+    impact: { type: String, required: true, enum: ["LOW", "MEDIUM", "HIGH"] },
     priority: {
       type: String,
       required: true,
       enum: TICKET_PRIORITIES,
-      immutable: true,
     },
     status: { type: String, required: true, enum: TICKET_STATUSES },
     assignee: { type: Schema.Types.ObjectId, ref: "User", default: null },
     submittedAt: { type: Date, required: true, immutable: true },
+    category: { type: String, maxlength: 80, default: null },
+    workStartedAt: { type: Date, default: undefined },
+    cancelledAt: { type: Date, default: undefined },
+    attachmentCount: { type: Number, default: 0, min: 0, max: 5 },
+    assetLinkRevision: { type: Number, default: 0 },
+    slaCycleNumber: { type: Number, default: 1, min: 1 },
+    followUpOf: { type: Schema.Types.ObjectId, ref: "Ticket", immutable: true, default: null },
+    assetSnapshots: { type: [Schema.Types.Mixed], default: () => [], immutable: true },
     firstResponseAt: { type: Date, default: undefined },
     resolution: { type: resolutionSchema, default: undefined },
     closedAt: { type: Date, default: undefined },
     closedBy: { type: Schema.Types.ObjectId, ref: "User", default: undefined },
     configurationSnapshots: {
-      service: { type: Schema.Types.Mixed, required: true },
-      slaPolicy: { type: Schema.Types.Mixed, required: true },
-      businessCalendar: { type: Schema.Types.Mixed, required: true },
+      service: { type: Schema.Types.Mixed, required: true, immutable: true },
+      slaPolicy: { type: Schema.Types.Mixed, required: true, immutable: true },
+      businessCalendar: { type: Schema.Types.Mixed, required: true, immutable: true },
     },
     version: {
       type: Number,

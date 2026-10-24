@@ -1,22 +1,16 @@
+import { runTicketCommand, listWorklogs } from "./ticketOperations.service.js";
+import { validateTicketCommand } from "./ticketOperations.validation.js";
 import { requestClientMetadata } from "../auth/session.service.js";
 import { requireIdempotencyKey } from "../../shared/database/idempotency.js";
 import {
-  addComment,
-  claimTicket,
-  closeTicket,
   createTicket,
   getTicket,
   listComments,
   listEvents,
   listTickets,
-  resolveTicket,
-  startTicket,
 } from "./ticket.service.js";
 import {
-  validateComment,
   validateCreateTicket,
-  validateExpectedVersion,
-  validateResolution,
   validateTicketQuery,
   validateTimelineQuery,
 } from "./ticket.validation.js";
@@ -67,27 +61,6 @@ export async function detail(req, res) {
   });
 }
 
-export async function claim(req, res) {
-  const result = await claimTicket({
-    authentication: authentication(req),
-    ticketId: req.params.ticketId,
-    expectedVersion: validateExpectedVersion(req.body),
-    idempotencyKey: requireIdempotencyKey(req),
-    metadata: metadata(req),
-  });
-  sendIdempotent(res, result);
-}
-
-export async function start(req, res) {
-  const ticket = await startTicket({
-    authentication: authentication(req),
-    ticketId: req.params.ticketId,
-    expectedVersion: validateExpectedVersion(req.body),
-    metadata: metadata(req),
-  });
-  res.status(200).json({ data: { ticket } });
-}
-
 export async function comments(req, res) {
   const result = await listComments(
     authentication(req),
@@ -95,17 +68,6 @@ export async function comments(req, res) {
     validateTimelineQuery(req.query),
   );
   res.status(200).json({ data: result });
-}
-
-export async function comment(req, res) {
-  const input = validateComment(req.body);
-  const created = await addComment({
-    authentication: authentication(req),
-    ticketId: req.params.ticketId,
-    body: input.body,
-    metadata: metadata(req),
-  });
-  res.status(201).json({ data: { comment: created } });
 }
 
 export async function events(req, res) {
@@ -117,25 +79,12 @@ export async function events(req, res) {
   res.status(200).json({ data: result });
 }
 
-export async function resolve(req, res) {
-  const input = validateResolution(req.body);
-  const result = await resolveTicket({
-    authentication: authentication(req),
-    ticketId: req.params.ticketId,
-    ...input,
-    idempotencyKey: requireIdempotencyKey(req),
-    metadata: metadata(req),
-  });
-  sendIdempotent(res, result);
-}
 
-export async function close(req, res) {
-  const result = await closeTicket({
-    authentication: authentication(req),
-    ticketId: req.params.ticketId,
-    expectedVersion: validateExpectedVersion(req.body),
-    idempotencyKey: requireIdempotencyKey(req),
-    metadata: metadata(req),
-  });
-  sendIdempotent(res, result);
+export const command = action => async (req, res) => {
+  const result = await runTicketCommand({ authentication: req.auth, ticketId: req.params.ticketId, action, input: validateTicketCommand(action, req.body), idempotencyKey: requireIdempotencyKey(req), metadata: metadata(req) });
+  if (result.replayed) res.setHeader("Idempotency-Replayed", "true");
+  res.status(result.status).json({ data: result.data });
+};
+export async function worklogs(req, res) {
+  res.json({ data: await listWorklogs(req.auth, req.params.ticketId, validateTimelineQuery(req.query)) });
 }

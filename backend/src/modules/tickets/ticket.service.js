@@ -1,8 +1,11 @@
+import { currentAccess } from "../access/currentAccess.service.js";
+import { linkTicketAssets } from "../assets/assetSelection.service.js";
+import { loadAccessibleTicket } from "./ticketOperations.service.js";
 import mongoose from "mongoose";
-import { AccessGrant } from "../access/accessGrant.model.js";
 import { recordRequiredAuditEvent } from "../auth/audit.service.js";
 import { loadTicketConfiguration } from "../service-levels/configuration.service.js";
 import { SlaCycle } from "../service-levels/slaCycle.model.js";
+import { ticketSlaCycles } from "../service-levels/slaClock.service.js";
 import { Location } from "../organization/location.model.js";
 import { User } from "../users/user.model.js";
 import { OutboxEvent } from "../outbox/outboxEvent.model.js";
@@ -24,7 +27,8 @@ import { TicketEvent } from "./ticketEvent.model.js";
 import {
   buildQueueAccessFilter,
   buildTicketAccessFilter,
-  canUseSupportScope,
+  canViewInternal,
+  PRIORITY_MATRIX,
 } from "./ticket.policy.js";
 import {
   serializeComment,
@@ -32,26 +36,12 @@ import {
   serializeTicket,
 } from "./ticket.serializer.js";
 
-const PRIORITY_BY_URGENCY = Object.freeze({ HIGH: "P2", MEDIUM: "P3", LOW: "P4" });
-
 function validObjectId(value) {
   return mongoose.isObjectIdOrHexString(value);
 }
 
 function notFound() {
   return new AppError(404, "TICKET_NOT_FOUND", "Ticket was not found.");
-}
-
-function staleVersion() {
-  return new AppError(
-    409,
-    "STALE_TICKET_VERSION",
-    "The ticket changed since it was loaded. Refresh it and retry.",
-  );
-}
-
-function invalidTransition(message) {
-  return new AppError(409, "INVALID_TICKET_TRANSITION", message);
 }
 
 function populateTicket(query) {
@@ -97,6 +87,7 @@ async function accessibleTicket(authentication, ticketId, mongoSession) {
 }
 
 async function activeActor(authentication, mongoSession) {
+  await currentAccess(authentication, mongoSession);
   const actor = await User.findOne({
     _id: authentication.user.id,
     organization: authentication.user.organizationId,
@@ -107,57 +98,6 @@ async function activeActor(authentication, mongoSession) {
   if (!actor) {
     throw new AppError(401, "AUTHENTICATION_REQUIRED", "Valid authentication is required.");
   }
-  return actor;
-}
-
-async function freshGrant(actor, capability, departmentId, mongoSession) {
-  return Boolean(
-    await AccessGrant.exists({
-      organization: actor.organization,
-      user: actor._id,
-      capability,
-      isActive: true,
-      revokedAt: { $exists: false },
-      $or: [{ department: departmentId }, { department: null }],
-    }).session(mongoSession),
-  );
-}
-
-async function requireFreshSupport(authentication, ticket, mongoSession) {
-  const actor = await activeActor(authentication, mongoSession);
-  if (
-    actor.role !== "TECHNICIAN" ||
-    !(await freshGrant(actor, "support", ticket.requesterDepartment, mongoSession))
-  ) {
-    throw new AppError(
-      403,
-      "SUPPORT_SCOPE_REQUIRED",
-      "An active support grant for the ticket department is required.",
-    );
-  }
-  return actor;
-}
-
-async function requireFreshCommentAccess(authentication, ticket, mongoSession) {
-  const actor = await activeActor(authentication, mongoSession);
-  if (ticket.requester.toString() === actor._id.toString()) return actor;
-
-  const support =
-    ticket.assignee?.toString() === actor._id.toString() &&
-    (await freshGrant(actor, "support", ticket.requesterDepartment, mongoSession));
-  const supervision = await freshGrant(
-    actor,
-    "department_supervise",
-    ticket.requesterDepartment,
-    mongoSession,
-  );
-  const triage = await freshGrant(
-    actor,
-    "ticket_triage",
-    ticket.requesterDepartment,
-    mongoSession,
-  );
-  if (!support && !supervision && !triage) throw notFound();
   return actor;
 }
 
@@ -261,6 +201,7 @@ async function recoverConcurrentReplay(authentication, operation, key, digest, e
 }
 
 export async function createTicket({ authentication, input, idempotencyKey, metadata }) {
+  authentication = await currentAccess(authentication);
   const operation = "ticket:create";
   const digest = requestDigest(input);
   const prior = await replay(authentication, operation, idempotencyKey, digest);
@@ -306,6 +247,9 @@ export async function createTicket({ authentication, input, idempotencyKey, meta
           input.locationId,
           mongoSession,
         );
+        const fresh = await currentAccess(authentication, mongoSession);
+        const assetSnapshots = await linkTicketAssets(fresh, configuration.serviceItem, input.assetIds || [], input.primaryAssetId, input.locationId, mongoSession);
+        if (input.followUpOfId) await loadAccessibleTicket(fresh, input.followUpOfId, mongoSession);
         const submittedAt = new Date();
         const year = yearInTimezone(submittedAt, authentication.organization.timezone);
         const reference = await nextReference(actor.organization, year, mongoSession);
@@ -313,6 +257,8 @@ export async function createTicket({ authentication, input, idempotencyKey, meta
           [
             {
               organization: actor.organization,
+              assetSnapshots,
+              followUpOf: input.followUpOfId || null,
               reference: reference.reference,
               referenceYear: year,
               referenceSequence: reference.sequence,
@@ -327,7 +273,7 @@ export async function createTicket({ authentication, input, idempotencyKey, meta
               description: input.description,
               urgency: input.urgency,
               impact: "MEDIUM",
-              priority: PRIORITY_BY_URGENCY[input.urgency],
+              priority: PRIORITY_MATRIX.MEDIUM[input.urgency],
               status: "NEW",
               assignee: null,
               submittedAt,
@@ -425,238 +371,13 @@ export async function listTickets({ authentication, filters, queue = false }) {
 }
 
 export async function getTicket(authentication, ticketId) {
-  return serializeTicket(authentication, await accessibleTicket(authentication, ticketId));
-}
-
-async function transitionPreflight(authentication, ticketId, expectedVersion) {
   const ticket = await accessibleTicket(authentication, ticketId);
-  if (ticket.version !== expectedVersion) throw staleVersion();
-  return ticket;
-}
-
-export async function claimTicket({
-  authentication,
-  ticketId,
-  expectedVersion,
-  idempotencyKey,
-  metadata,
-}) {
-  const operation = `ticket:claim:${ticketId}`;
-  const digest = requestDigest({ ticketId, expectedVersion });
-  const ticket = await accessibleTicket(authentication, ticketId);
-  const prior = await replay(authentication, operation, idempotencyKey, digest);
-  if (prior) return prior;
-  if (!canUseSupportScope(authentication, ticket.requesterDepartment._id)) {
-    throw new AppError(403, "SUPPORT_SCOPE_REQUIRED", "An active support grant is required.");
-  }
-  if (ticket.version !== expectedVersion) throw staleVersion();
-  if (ticket.assignee || !["NEW", "OPEN"].includes(ticket.status)) {
-    throw invalidTransition("Only an unassigned NEW or OPEN ticket can be claimed.");
-  }
-  if (ticket.approvalStatus !== "NOT_REQUIRED") {
-    throw invalidTransition("A ticket with an outstanding approval cannot be claimed.");
-  }
-
-  let updatedId;
-  try {
-    updatedId = await runRequiredTransaction(async (mongoSession) => {
-      const current = await Ticket.findOne({
-        _id: ticketId,
-        organization: authentication.user.organizationId,
-      }).session(mongoSession);
-      if (!current) throw notFound();
-      const actor = await requireFreshSupport(authentication, current, mongoSession);
-      if (current.version !== expectedVersion) throw staleVersion();
-      if (current.assignee || !["NEW", "OPEN"].includes(current.status)) {
-        throw invalidTransition("Only an unassigned NEW or OPEN ticket can be claimed.");
-      }
-      if (current.approvalStatus !== "NOT_REQUIRED") {
-        throw invalidTransition("A ticket with an outstanding approval cannot be claimed.");
-      }
-      const nextStatus = current.status === "NEW" ? "OPEN" : current.status;
-      const updated = await Ticket.findOneAndUpdate(
-        {
-          _id: current._id,
-          organization: current.organization,
-          version: expectedVersion,
-          assignee: null,
-          status: current.status,
-          approvalStatus: "NOT_REQUIRED",
-        },
-        { $set: { assignee: actor._id, status: nextStatus }, $inc: { version: 1 } },
-        { returnDocument: "after", session: mongoSession },
-      );
-      if (!updated) throw staleVersion();
-      const now = new Date();
-      await createEvent(
-        {
-          organization: updated.organization,
-          ticket: updated._id,
-          type: "CLAIMED",
-          actor: actor._id,
-          data: { assigneeId: actor._id.toString(), status: nextStatus },
-          occurredAt: now,
-        },
-        mongoSession,
-      );
-      await recordRequiredAuditEvent(
-        auditDocument("TICKET_CLAIMED", authentication, updated, metadata),
-        mongoSession,
-      );
-      await createOutbox(
-        ticketOutbox(updated, "TICKET_CLAIMED", { userIds: [updated.requester] }),
-        mongoSession,
-      );
-      await saveIdempotencyRecord(
-        {
-          organization: actor.organization,
-          user: actor._id,
-          operation,
-          key: idempotencyKey,
-          digest,
-          resourceId: updated._id,
-          responseStatus: 200,
-        },
-        mongoSession,
-      );
-      return updated._id;
-    });
-  } catch (error) {
-    return recoverConcurrentReplay(authentication, operation, idempotencyKey, digest, error);
-  }
-  const updated = await accessibleTicket(authentication, updatedId);
-  return { ticket: serializeTicket(authentication, updated), status: 200, replayed: false };
-}
-
-export async function startTicket({ authentication, ticketId, expectedVersion, metadata }) {
-  const preflight = await transitionPreflight(authentication, ticketId, expectedVersion);
-  if (
-    !canUseSupportScope(authentication, preflight.requesterDepartment._id) ||
-    preflight.assignee?._id.toString() !== authentication.user.id
-  ) {
-    throw new AppError(403, "FORBIDDEN", "Only the eligible assigned technician can start work.");
-  }
-  if (preflight.status !== "OPEN") {
-    throw invalidTransition("Only an OPEN ticket can move to IN_PROGRESS.");
-  }
-
-  const updatedId = await runRequiredTransaction(async (mongoSession) => {
-    const current = await Ticket.findOne({
-      _id: ticketId,
-      organization: authentication.user.organizationId,
-    }).session(mongoSession);
-    if (!current) throw notFound();
-    const actor = await requireFreshSupport(authentication, current, mongoSession);
-    if (current.version !== expectedVersion) throw staleVersion();
-    if (current.assignee?.toString() !== actor._id.toString() || current.status !== "OPEN") {
-      throw invalidTransition("Only the eligible assigned technician can start an OPEN ticket.");
-    }
-    const updated = await Ticket.findOneAndUpdate(
-      { _id: current._id, version: expectedVersion, assignee: actor._id, status: "OPEN" },
-      { $set: { status: "IN_PROGRESS" }, $inc: { version: 1 } },
-      { returnDocument: "after", session: mongoSession },
-    );
-    if (!updated) throw staleVersion();
-    const now = new Date();
-    await createEvent(
-      {
-        organization: updated.organization,
-        ticket: updated._id,
-        type: "WORK_STARTED",
-        actor: actor._id,
-        data: { status: "IN_PROGRESS" },
-        occurredAt: now,
-      },
-      mongoSession,
-    );
-    await recordRequiredAuditEvent(
-      auditDocument("TICKET_WORK_STARTED", authentication, updated, metadata),
-      mongoSession,
-    );
-    await createOutbox(
-      ticketOutbox(updated, "TICKET_WORK_STARTED", { userIds: [updated.requester] }),
-      mongoSession,
-    );
-    return updated._id;
-  });
-  return serializeTicket(authentication, await accessibleTicket(authentication, updatedId));
-}
-
-export async function addComment({ authentication, ticketId, body, metadata }) {
-  const preflight = await accessibleTicket(authentication, ticketId);
-  if (preflight.status === "CLOSED") {
-    throw invalidTransition("Closed tickets do not accept comments.");
-  }
-
-  const result = await runRequiredTransaction(async (mongoSession) => {
-    const current = await Ticket.findOne({
-      _id: ticketId,
-      organization: authentication.user.organizationId,
-    }).session(mongoSession);
-    if (!current) throw notFound();
-    if (current.status === "CLOSED") {
-      throw invalidTransition("Closed tickets do not accept comments.");
-    }
-    const actor = await requireFreshCommentAccess(authentication, current, mongoSession);
-    const now = new Date();
-    const [comment] = await TicketComment.create(
-      [
-        {
-          organization: current.organization,
-          ticket: current._id,
-          author: actor._id,
-          visibility: "PUBLIC",
-          kind: "REPLY",
-          body,
-        },
-      ],
-      { session: mongoSession },
-    );
-    const isStaffResponse = current.requester.toString() !== actor._id.toString();
-    const set = isStaffResponse && !current.firstResponseAt ? { firstResponseAt: now } : {};
-    await Ticket.updateOne(
-      { _id: current._id, version: current.version },
-      { $set: set, $inc: { version: 1 } },
-      { session: mongoSession },
-    );
-    await createEvent(
-      {
-        organization: current.organization,
-        ticket: current._id,
-        type: "PUBLIC_REPLY_ADDED",
-        actor: actor._id,
-        data: { commentId: comment._id.toString() },
-        occurredAt: now,
-      },
-      mongoSession,
-    );
-    await recordRequiredAuditEvent(
-      auditDocument("TICKET_PUBLIC_REPLY_ADDED", authentication, current, metadata),
-      mongoSession,
-    );
-    const recipients = isStaffResponse
-      ? { userIds: [current.requester] }
-      : {
-          userIds: current.assignee ? [current.assignee] : [],
-          capability: "support",
-          department: current.requesterDepartment,
-        };
-    await createOutbox(
-      ticketOutbox(current, "TICKET_PUBLIC_REPLY_ADDED", recipients, {
-        commentId: comment._id.toString(),
-      }),
-      mongoSession,
-    );
-    return comment._id;
-  });
-
-  const comment = await TicketComment.findById(result).populate("author", "displayName");
-  return serializeComment(comment);
+  return { ...serializeTicket(authentication, ticket), slaCycles: await ticketSlaCycles(ticket) };
 }
 
 export async function listComments(authentication, ticketId, pagination) {
   const ticket = await accessibleTicket(authentication, ticketId);
-  const filter = { organization: authentication.user.organizationId, ticket: ticket._id };
+  const filter = { organization: authentication.user.organizationId, ticket: ticket._id, ...(canViewInternal(authentication, ticket) ? {} : { visibility: { $in: ["PUBLIC", null] } }) };
   const skip = (pagination.page - 1) * pagination.limit;
   const [comments, total] = await Promise.all([
     TicketComment.find(filter)
@@ -678,7 +399,7 @@ export async function listComments(authentication, ticketId, pagination) {
 
 export async function listEvents(authentication, ticketId, pagination) {
   const ticket = await accessibleTicket(authentication, ticketId);
-  const filter = { organization: authentication.user.organizationId, ticket: ticket._id };
+  const filter = { organization: authentication.user.organizationId, ticket: ticket._id, ...(canViewInternal(authentication, ticket) ? {} : { visibility: { $in: ["PUBLIC", null] } }) };
   const skip = (pagination.page - 1) * pagination.limit;
   const [events, total] = await Promise.all([
     TicketEvent.find(filter)
@@ -696,206 +417,4 @@ export async function listEvents(authentication, ticketId, pagination) {
       totalPages: total === 0 ? 0 : Math.ceil(total / pagination.limit),
     },
   };
-}
-
-export async function resolveTicket({
-  authentication,
-  ticketId,
-  expectedVersion,
-  summary,
-  resolutionCode,
-  idempotencyKey,
-  metadata,
-}) {
-  const operation = `ticket:resolve:${ticketId}`;
-  const digest = requestDigest({ ticketId, expectedVersion, summary, resolutionCode });
-  const ticket = await accessibleTicket(authentication, ticketId);
-  const prior = await replay(authentication, operation, idempotencyKey, digest);
-  if (prior) return prior;
-  if (
-    !canUseSupportScope(authentication, ticket.requesterDepartment._id) ||
-    ticket.assignee?._id.toString() !== authentication.user.id
-  ) {
-    throw new AppError(403, "FORBIDDEN", "Only the eligible assigned technician can resolve this ticket.");
-  }
-  if (ticket.version !== expectedVersion) throw staleVersion();
-  if (ticket.status !== "IN_PROGRESS") {
-    throw invalidTransition("Only an IN_PROGRESS ticket can be resolved.");
-  }
-
-  let updatedId;
-  try {
-    updatedId = await runRequiredTransaction(async (mongoSession) => {
-      const current = await Ticket.findOne({
-        _id: ticketId,
-        organization: authentication.user.organizationId,
-      }).session(mongoSession);
-      if (!current) throw notFound();
-      const actor = await requireFreshSupport(authentication, current, mongoSession);
-      if (current.version !== expectedVersion) throw staleVersion();
-      if (
-        current.assignee?.toString() !== actor._id.toString() ||
-        current.status !== "IN_PROGRESS"
-      ) {
-        throw invalidTransition("Only the eligible assigned technician can resolve an IN_PROGRESS ticket.");
-      }
-      const now = new Date();
-      const set = {
-        status: "RESOLVED",
-        resolution: { summary, code: resolutionCode, resolvedBy: actor._id, resolvedAt: now },
-        ...(!current.firstResponseAt ? { firstResponseAt: now } : {}),
-      };
-      const updated = await Ticket.findOneAndUpdate(
-        { _id: current._id, version: expectedVersion, assignee: actor._id, status: "IN_PROGRESS" },
-        { $set: set, $inc: { version: 1 } },
-        { returnDocument: "after", session: mongoSession },
-      );
-      if (!updated) throw staleVersion();
-      const [comment] = await TicketComment.create(
-        [
-          {
-            organization: updated.organization,
-            ticket: updated._id,
-            author: actor._id,
-            visibility: "PUBLIC",
-            kind: "RESOLUTION",
-            body: summary,
-          },
-        ],
-        { session: mongoSession },
-      );
-      const cycleResult = await SlaCycle.updateOne(
-        { organization: updated.organization, ticket: updated._id, cycleNumber: 1, endedAt: { $exists: false } },
-        { $set: { endedAt: now, endReason: "RESOLVED" } },
-        { session: mongoSession },
-      );
-      if (cycleResult.matchedCount !== 1) {
-        throw new Error("The active SLA cycle is missing or already ended.");
-      }
-      await createEvent(
-        {
-          organization: updated.organization,
-          ticket: updated._id,
-          type: "RESOLVED",
-          actor: actor._id,
-          data: { resolutionCode, commentId: comment._id.toString(), status: "RESOLVED" },
-          occurredAt: now,
-        },
-        mongoSession,
-      );
-      await recordRequiredAuditEvent(
-        auditDocument("TICKET_RESOLVED", authentication, updated, metadata),
-        mongoSession,
-      );
-      await createOutbox(
-        ticketOutbox(updated, "TICKET_RESOLVED", { userIds: [updated.requester] }),
-        mongoSession,
-      );
-      await saveIdempotencyRecord(
-        {
-          organization: actor.organization,
-          user: actor._id,
-          operation,
-          key: idempotencyKey,
-          digest,
-          resourceId: updated._id,
-          responseStatus: 200,
-        },
-        mongoSession,
-      );
-      return updated._id;
-    });
-  } catch (error) {
-    return recoverConcurrentReplay(authentication, operation, idempotencyKey, digest, error);
-  }
-  const updated = await accessibleTicket(authentication, updatedId);
-  return { ticket: serializeTicket(authentication, updated), status: 200, replayed: false };
-}
-
-export async function closeTicket({
-  authentication,
-  ticketId,
-  expectedVersion,
-  idempotencyKey,
-  metadata,
-}) {
-  const operation = `ticket:close:${ticketId}`;
-  const digest = requestDigest({ ticketId, expectedVersion });
-  const ticket = await accessibleTicket(authentication, ticketId);
-  const prior = await replay(authentication, operation, idempotencyKey, digest);
-  if (prior) return prior;
-  if (ticket.requester._id.toString() !== authentication.user.id) {
-    throw new AppError(403, "FORBIDDEN", "Only the requester can confirm closure.");
-  }
-  if (ticket.version !== expectedVersion) throw staleVersion();
-  if (ticket.status !== "RESOLVED") {
-    throw invalidTransition("Only a RESOLVED ticket can be closed.");
-  }
-
-  let updatedId;
-  try {
-    updatedId = await runRequiredTransaction(async (mongoSession) => {
-      const actor = await activeActor(authentication, mongoSession);
-      const current = await Ticket.findOne({
-        _id: ticketId,
-        organization: actor.organization,
-      }).session(mongoSession);
-      if (!current) throw notFound();
-      if (current.requester.toString() !== actor._id.toString()) {
-        throw new AppError(403, "FORBIDDEN", "Only the requester can confirm closure.");
-      }
-      if (current.version !== expectedVersion) throw staleVersion();
-      if (current.status !== "RESOLVED") {
-        throw invalidTransition("Only a RESOLVED ticket can be closed.");
-      }
-      const now = new Date();
-      const updated = await Ticket.findOneAndUpdate(
-        { _id: current._id, version: expectedVersion, requester: actor._id, status: "RESOLVED" },
-        {
-          $set: { status: "CLOSED", closedAt: now, closedBy: actor._id },
-          $inc: { version: 1 },
-        },
-        { returnDocument: "after", session: mongoSession },
-      );
-      if (!updated) throw staleVersion();
-      await createEvent(
-        {
-          organization: updated.organization,
-          ticket: updated._id,
-          type: "CLOSED",
-          actor: actor._id,
-          data: { status: "CLOSED" },
-          occurredAt: now,
-        },
-        mongoSession,
-      );
-      await recordRequiredAuditEvent(
-        auditDocument("TICKET_CLOSED", authentication, updated, metadata),
-        mongoSession,
-      );
-      await createOutbox(
-        ticketOutbox(updated, "TICKET_CLOSED", {
-          userIds: updated.assignee ? [updated.assignee] : [],
-        }),
-        mongoSession,
-      );
-      await saveIdempotencyRecord(
-        {
-          organization: actor.organization,
-          user: actor._id,
-          operation,
-          key: idempotencyKey,
-          digest,
-          resourceId: updated._id,
-          responseStatus: 200,
-        },
-        mongoSession,
-      );
-      return updated._id;
-    });
-  } catch (error) {
-    return recoverConcurrentReplay(authentication, operation, idempotencyKey, digest, error);
-  }
-  const updated = await accessibleTicket(authentication, updatedId);
-  return { ticket: serializeTicket(authentication, updated), status: 200, replayed: false };
 }

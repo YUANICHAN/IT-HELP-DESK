@@ -1,5 +1,5 @@
 import { sessionConfig } from "../config/session.js";
-import { AccessGrant } from "../modules/access/accessGrant.model.js";
+import { AccessGrant, CAPABILITY_RULES } from "../modules/access/accessGrant.model.js";
 import { recordAuthenticationEvent } from "../modules/auth/audit.service.js";
 import { Session } from "../modules/auth/session.model.js";
 import {
@@ -168,7 +168,7 @@ export const authenticate = asyncHandler(async (req, res, next) => {
       name: department.name,
       isActive: department.isActive,
     }),
-    permissions: Object.freeze(grants.map(safeGrant)),
+    permissions: Object.freeze(grants.filter(grant => CAPABILITY_RULES[grant.capability]?.roles.includes(user.role)).map(safeGrant)),
     session: Object.freeze(safeSession(session, session._id)),
     csrfToken: csrfTokenForSession(rawToken),
   });

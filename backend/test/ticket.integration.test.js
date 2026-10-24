@@ -23,6 +23,7 @@ import { User } from "../src/modules/users/user.model.js";
 import { hashPassword } from "../src/modules/users/password.service.js";
 import { IdempotencyKey } from "../src/shared/database/idempotencyKey.model.js";
 import { isolatedDatabaseUri } from "./support/database.js";
+import { randomUUID } from "node:crypto";
 
 const ORIGIN = "http://127.0.0.1:5000";
 const PASSWORD = "Ticket-Workflow-Test-1!";
@@ -98,6 +99,13 @@ test("first ticket workflow HTTP integration", async (context) => {
   }
 
   async function post(path, auth, body, idempotencyKey) {
+    if (/\/(start|comments)$/u.test(path)) {
+      idempotencyKey ||= randomUUID();
+      if (body.expectedVersion === undefined && path.endsWith("/comments")) {
+        const ticket = await Ticket.findById(path.split("/").at(-2));
+        body = { ...body, expectedVersion: ticket.version };
+      }
+    }
     return request(path, { method: "POST", auth, body, idempotencyKey });
   }
 
@@ -406,11 +414,11 @@ test("first ticket workflow HTTP integration", async (context) => {
       const assetSelection = await post(
         "/api/v1/tickets",
         employeeAuth,
-        { ...createBody, assetIds: [] },
+        { ...createBody, assetIds: [new mongoose.Types.ObjectId().toString()] },
         "asset-unsupported",
       );
       assert.equal(assetSelection.status, 422);
-      assert.equal(assetSelection.body.error.code, "ASSET_SELECTION_UNSUPPORTED");
+      assert.equal(assetSelection.body.error.code, "ASSET_SELECTION_UNAVAILABLE");
 
       const before = await Ticket.countDocuments();
       const approval = await post(

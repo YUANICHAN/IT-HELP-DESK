@@ -5,6 +5,7 @@ import { IdempotencyKey } from "./idempotencyKey.model.js";
 const KEY_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/u;
 
 function stableValue(value) {
+  if (value instanceof Date) return value.toISOString();
   if (Array.isArray(value)) return value.map(stableValue);
   if (value && typeof value === "object") {
     return Object.fromEntries(
@@ -49,7 +50,7 @@ export function assertIdempotencyInput(record, digest) {
 }
 
 export async function saveIdempotencyRecord(
-  { organization, user, operation, key, digest, resourceId, responseStatus },
+  { organization, user, operation, key, digest, resourceId, responseStatus, resourceType = "TICKET" },
   mongoSession,
 ) {
   await IdempotencyKey.create(
@@ -60,7 +61,7 @@ export async function saveIdempotencyRecord(
         operation,
         key,
         requestDigest: digest,
-        resourceType: "TICKET",
+        resourceType,
         resourceId,
         responseStatus,
       },

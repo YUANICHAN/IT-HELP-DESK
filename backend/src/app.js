@@ -5,6 +5,8 @@ import { credentialedCors, validateOrigin } from "./middleware/validateOrigin.js
 import authRoutes from "./modules/auth/auth.routes.js";
 import accessRoutes from "./modules/access/access.routes.js";
 import ticketRoutes, { queueRouter } from "./modules/tickets/ticket.routes.js";
+import assetRoutes from "./modules/assets/assets.routes.js";
+import attachmentRoutes from "./modules/attachments/attachment.routes.js";
 import { AppError } from "./shared/errors/app-error.js";
 
 const app = express();
@@ -43,6 +45,8 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/admin/access-grants", accessRoutes);
 app.use("/api/v1/tickets", ticketRoutes);
 app.use("/api/v1/queue", queueRouter);
+app.use("/api/v1/assets", assetRoutes);
+app.use("/api/v1/attachments", attachmentRoutes);
 
 app.use((req, res) => {
   res.status(404).json({

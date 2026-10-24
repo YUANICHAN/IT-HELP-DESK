@@ -60,6 +60,7 @@ const serviceItemSchema = new Schema(
       required: true,
       default: () => ({}),
     },
+    assetPolicy: { type: String, enum: ["NONE", "OWN_ONLY", "OWN_OR_SHARED_DEPARTMENT"], default: "NONE" },
     isActive: {
       type: Boolean,
       required: true,

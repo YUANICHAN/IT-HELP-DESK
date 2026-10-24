@@ -6,7 +6,9 @@ const outboxEventSchema = new Schema(
   {
     organization: { type: Schema.Types.ObjectId, ref: "Organization", required: true, immutable: true },
     eventType: { type: String, required: true, maxlength: 80, immutable: true },
-    aggregateType: { type: String, required: true, enum: ["TICKET"], immutable: true },
+    aggregateType: { type: String, required: true, enum: ["TICKET", "ASSET"], immutable: true },
+    visibility: { type: String, enum: ["PUBLIC", "INTERNAL", "ASSET_MANAGERS"], default: "PUBLIC", immutable: true },
+    requiresAuthorization: { type: Boolean, default: true, immutable: true },
     aggregateId: { type: Schema.Types.ObjectId, required: true, immutable: true },
     recipients: {
       userIds: [{ type: Schema.Types.ObjectId, ref: "User" }],

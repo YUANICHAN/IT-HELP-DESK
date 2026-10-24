@@ -9,7 +9,7 @@ const idempotencyKeySchema = new Schema(
     operation: { type: String, required: true, maxlength: 120, immutable: true },
     key: { type: String, required: true, maxlength: 128, immutable: true },
     requestDigest: { type: String, required: true, match: /^[a-f0-9]{64}$/u, immutable: true },
-    resourceType: { type: String, required: true, enum: ["TICKET"], immutable: true },
+    resourceType: { type: String, required: true, enum: ["TICKET", "COMMENT", "WORKLOG", "ATTACHMENT", "ASSET"], immutable: true },
     resourceId: { type: Schema.Types.ObjectId, required: true, immutable: true },
     responseStatus: { type: Number, required: true, min: 200, max: 299, immutable: true },
   },

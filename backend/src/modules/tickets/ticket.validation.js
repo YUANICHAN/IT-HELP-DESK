@@ -6,6 +6,7 @@ import {
   TICKET_URGENCIES,
 } from "./ticket.model.js";
 import { TICKET_TYPES } from "../catalog/serviceItem.model.js";
+import { objectId, invalid } from "../../shared/validation/commands.js";
 
 function text(value, label, minimum, maximum) {
   if (typeof value !== "string") {
@@ -33,16 +34,13 @@ function oneOf(value, values, label) {
 export function validateCreateTicket(body) {
   requireExactObject(
     body,
-    ["serviceItemId", "title", "description", "urgency", "locationId", "assetIds"],
+    ["serviceItemId", "title", "description", "urgency", "locationId", "assetIds", "primaryAssetId", "followUpOfId"],
     ["serviceItemId", "title", "description", "urgency"],
   );
-  if (Object.hasOwn(body, "assetIds")) {
-    throw new AppError(
-      422,
-      "ASSET_SELECTION_UNSUPPORTED",
-      "Asset selection is not available yet. Remove assetIds and retry.",
-    );
-  }
+  if (body.assetIds !== undefined && (!Array.isArray(body.assetIds) || body.assetIds.length > 20)) invalid("assetIds must contain at most twenty IDs.");
+  const assetIds = [...new Set((body.assetIds || []).map(id => objectId(id, "assetId")))];
+  const primaryAssetId = body.primaryAssetId != null ? objectId(body.primaryAssetId, "primaryAssetId") : null;
+  if (primaryAssetId && !assetIds.includes(primaryAssetId)) invalid("primaryAssetId must be in assetIds.");
   if (typeof body.serviceItemId !== "string" || !body.serviceItemId) {
     throw new AppError(400, "VALIDATION_ERROR", "Service item ID is required.");
   }
@@ -59,6 +57,9 @@ export function validateCreateTicket(body) {
     description: text(body.description, "Description", 20, 5000),
     urgency: oneOf(body.urgency, TICKET_URGENCIES, "Urgency"),
     locationId: body.locationId || null,
+    assetIds,
+    primaryAssetId,
+    followUpOfId: body.followUpOfId != null ? objectId(body.followUpOfId, "followUpOfId") : null,
   };
 }
 

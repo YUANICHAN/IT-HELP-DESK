@@ -6,18 +6,16 @@ import {
 import { csrfProtection } from "../../middleware/csrfProtection.js";
 import { asyncHandler } from "../../shared/errors/app-error.js";
 import {
-  claim,
-  close,
-  comment,
+  command,
+  worklogs,
   comments,
   create,
   detail,
   events,
   list,
   queue,
-  resolve,
-  start,
 } from "./ticket.controller.js";
+import { upload, list as attachments } from "../attachments/attachment.routes.js";
 
 function ticketSecurity(router) {
   router.use((_req, res, next) => {
@@ -34,13 +32,15 @@ ticketSecurity(router);
 router.post("/", csrfProtection, asyncHandler(create));
 router.get("/", asyncHandler(list));
 router.get("/:ticketId", asyncHandler(detail));
-router.post("/:ticketId/claim", csrfProtection, asyncHandler(claim));
-router.post("/:ticketId/start", csrfProtection, asyncHandler(start));
+router.patch("/:ticketId", csrfProtection, command("patch"));
+for (const action of ["claim", "start", "triage", "assignment", "wait", "resume", "cancel", "reopen", "resolve", "close"]) router.post(`/:ticketId/${action}`, csrfProtection, command(action));
 router.get("/:ticketId/comments", asyncHandler(comments));
-router.post("/:ticketId/comments", csrfProtection, asyncHandler(comment));
+router.post("/:ticketId/comments", csrfProtection, command("comment"));
 router.get("/:ticketId/events", asyncHandler(events));
-router.post("/:ticketId/resolve", csrfProtection, asyncHandler(resolve));
-router.post("/:ticketId/close", csrfProtection, asyncHandler(close));
+router.get("/:ticketId/worklogs", worklogs);
+router.post("/:ticketId/worklogs", csrfProtection, command("worklog"));
+router.get("/:ticketId/attachments", attachments);
+router.post("/:ticketId/attachments", csrfProtection, upload);
 
 const queueRouter = Router();
 ticketSecurity(queueRouter);
