@@ -10,7 +10,8 @@
     "bootstrap:admin": "node scripts/bootstrap-admin.js",
     "db:indexes": "node scripts/create-indexes.js",
     "attachments:cleanup": "node scripts/cleanup-attachments.js",
-    "seed:operations": "node scripts/seed-operations.js"
+    "seed:operations": "node scripts/seed-operations.js",
+    "seed:approvals": "node scripts/seed-approvals.js"
   },
   "keywords": [],
   "author": "",

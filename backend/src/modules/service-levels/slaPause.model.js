@@ -29,6 +29,7 @@ const schema = new Schema({
     required: true,
     immutable: true
   },
+  reason: { type: String, enum: ["WAITING_REQUESTER", "WAITING_APPROVAL"], default: "WAITING_REQUESTER", immutable: true },
   endedAt: {
     type: Date,
     default: null

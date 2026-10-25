@@ -428,7 +428,7 @@ test("first ticket workflow HTTP integration", async (context) => {
         "approval-blocked-1",
       );
       assert.equal(approval.status, 409);
-      assert.equal(approval.body.error.code, "APPROVAL_WORKFLOW_REQUIRED");
+      assert.equal(approval.body.error.code, "APPROVER_CONFIGURATION_REQUIRED");
       assert.equal(await Ticket.countDocuments(), before);
 
       const inactive = await post(

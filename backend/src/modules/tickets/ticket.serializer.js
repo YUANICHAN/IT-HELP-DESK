@@ -52,6 +52,7 @@ export function serializeTicket(authentication, ticket) {
     followUpOf: idOf(ticket.followUpOf) || null,
     approvalRequired: ticket.approvalRequired,
     approvalStatus: ticket.approvalStatus,
+    currentApprovalRound: ticket.currentApprovalRound || 0,
     requester: safePerson(ticket.requester),
     requesterDepartment: safeDepartment(ticket.requesterDepartment),
     assignee: safePerson(ticket.assignee),

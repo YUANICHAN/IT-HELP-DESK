@@ -76,6 +76,7 @@ serviceItemSchema.index(
 );
 
 serviceItemSchema.pre("validate", async function validateReferences() {
+  if (this.ticketType === "INCIDENT" && this.requiresApproval) this.invalidate("requiresApproval", "Incidents cannot require approval.");
   await requireReference({
     document: this,
     path: "organization",

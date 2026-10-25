@@ -5,6 +5,8 @@ import { Ticket } from "../src/modules/tickets/ticket.model.js";
 import { TicketEvent } from "../src/modules/tickets/ticketEvent.model.js";
 import { SlaCycle } from "../src/modules/service-levels/slaCycle.model.js";
 export async function createIndexes() {
+  // Only legacy non-approval tickets can be backfilled automatically.
+  await Ticket.collection.updateMany({ approvalRequired: false, currentApprovalRound: { $exists: false } }, { $set: { currentApprovalRound: 0 } });
   // Repeatable backfills for Step 5 records; preserve original snapshots and clock starts.
   await TicketEvent.collection.updateMany({
     visibility: {

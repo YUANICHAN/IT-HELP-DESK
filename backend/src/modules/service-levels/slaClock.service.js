@@ -19,6 +19,7 @@ export function cycleElapsed(cycle, pauses, now = new Date()) {
     startedAt: cycle.startedAt,
     endedAt: cycle.endedAt || null,
     endReason: cycle.endReason || null,
+    resolutionTargetEligible: !["REJECTED", "CANCELLED"].includes(cycle.endReason),
     firstResponseAt: cycle.firstResponseAt || null,
     responseElapsedMilliseconds: businessMilliseconds(cycle.startedAt, responseEnd, calendar),
     resolutionElapsedMilliseconds: Math.max(0, elapsed - paused),

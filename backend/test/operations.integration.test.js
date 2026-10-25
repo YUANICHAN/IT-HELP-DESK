@@ -281,7 +281,7 @@ test("Steps 6 and 7 replica-set operations", async context => {
       assert.deepEqual(cycle.startedAt, original.startedAt);
       assert.deepEqual(cycle.configurationSnapshots, original.configurationSnapshots);
     });
-    await context.test("cancellation races, terminal states, pending approval stays blocked, reopening cycles", async () => {
+    await context.test("cancellation races, terminal states, malformed imported approval stays blocked, reopening cycles", async () => {
       const t = await f.ticket();
       status(await f.command(t.id, "claim", "tech"), 200);
       const outcomes = await Promise.all([f.post(`/tickets/${t.id}/start`, "tech", {

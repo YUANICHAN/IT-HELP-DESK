@@ -1,4 +1,6 @@
 import mongoose from "mongoose";
+import { requireFulfillmentApproval } from "../approvals/approval.policy.js";
+import { endApprovalPause, supersedeApproval } from "../approvals/approvalLifecycle.service.js";
 import { AppError } from "../../shared/errors/app-error.js";
 import { same, idOf } from "../../shared/validation/commands.js";
 import { executeCommand } from "../../shared/database/command.js";
@@ -70,6 +72,8 @@ export async function recordTicketChange({
   type,
   data = {},
   visibility = "PUBLIC",
+  recipients,
+  notificationVisibility = visibility,
   metadata = {},
   session
 }) {
@@ -101,18 +105,19 @@ export async function recordTicketChange({
     aggregateType: "TICKET",
     aggregateId: ticket._id,
     eventType: `TICKET_${type}`,
-    visibility,
+    visibility: notificationVisibility,
     requiresAuthorization: true,
-    recipients: visibility === "INTERNAL" ? {
+    recipients: recipients || (visibility === "INTERNAL" ? {
       userIds: [],
       capability: "ticket_triage",
       department: ticket.requesterDepartment
     } : {
       userIds: [ticket.requester]
-    },
+    }),
     payload: {
       ticketId: idOf(ticket),
-      reference: ticket.reference
+      reference: ticket.reference,
+      ...(type.startsWith("APPROVAL_") ? { approvalId: data.approvalId, round: data.round } : {})
     },
     status: "PENDING"
   }], {
@@ -271,6 +276,10 @@ export async function runTicketCommand({
       const requireActive = () => {
         if (!ACTIVE_STATUSES.includes(ticket.status)) conflict("This command requires an active ticket.");
       };
+      if (["triage", "claim", "assignment", "start", "wait", "resume", "resolve", "worklog", "reopen"].includes(action) ||
+          (action === "comment" && requester && input.visibility === "PUBLIC" && ticket.status === "WAITING_REQUESTER")) {
+        await requireFulfillmentApproval(ticket, session);
+      }
       if (action === "patch") {
         requireActive();
         if (!(requester && ["NEW", "OPEN"].includes(ticket.status) && !ticket.workStartedAt) && !triage) forbidden();
@@ -311,7 +320,6 @@ export async function runTicketCommand({
         type = "TRIAGED";
       } else if (action === "claim" || action === "assignment") {
         requireActive();
-        if (ticket.approvalStatus !== "NOT_REQUIRED") conflict("Approval-backed assignment is unavailable.");
         let assignee = input.assigneeId;
         if (action === "claim") {
           if (!canUseSupportScope(auth, ticket.requesterDepartment)) forbidden();
@@ -408,7 +416,14 @@ export async function runTicketCommand({
       } else if (action === "cancel") {
         if (!triage && !(requester && ["NEW", "OPEN", "WAITING_APPROVAL"].includes(ticket.status) && !ticket.workStartedAt)) forbidden();
         if (![...ACTIVE_STATUSES, "WAITING_APPROVAL"].includes(ticket.status)) conflict("Only non-resolved active tickets can be cancelled.");
-        if (ticket.approvalStatus === "PENDING" || ticket.status === "WAITING_APPROVAL") conflict("Pending approvals must be superseded by the approvals module, which is not available.");
+        if (ticket.approvalStatus === "PENDING" || ticket.status === "WAITING_APPROVAL") {
+          const approval = await supersedeApproval(ticket, auth.user.id, input.reason, now, session);
+          await endApprovalPause(ticket, now, session);
+          set.approvalStatus = "SUPERSEDED";
+          await recordTicketChange({ auth, ticket, type: "APPROVAL_SUPERSEDED",
+            data: { approvalId: approval.id, round: approval.round },
+            recipients: { userIds: [ticket.requester, approval.approver], capability: "ticket_triage", department: ticket.requesterDepartment }, metadata, session });
+        }
         set.status = "CANCELLED";
         set.cancelledAt = now;
         await closePause(ticket, now, session);

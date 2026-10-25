@@ -16,6 +16,7 @@ import {
   queue,
 } from "./ticket.controller.js";
 import { upload, list as attachments } from "../attachments/attachment.routes.js";
+import { reroute, history as approvalHistory } from "../approvals/approvals.controller.js";
 
 function ticketSecurity(router) {
   router.use((_req, res, next) => {
@@ -32,6 +33,8 @@ ticketSecurity(router);
 router.post("/", csrfProtection, asyncHandler(create));
 router.get("/", asyncHandler(list));
 router.get("/:ticketId", asyncHandler(detail));
+router.post("/:ticketId/approval-reroutes", csrfProtection, asyncHandler(reroute));
+router.get("/:ticketId/approvals", asyncHandler(approvalHistory));
 router.patch("/:ticketId", csrfProtection, command("patch"));
 for (const action of ["claim", "start", "triage", "assignment", "wait", "resume", "cancel", "reopen", "resolve", "close"]) router.post(`/:ticketId/${action}`, csrfProtection, command(action));
 router.get("/:ticketId/comments", asyncHandler(comments));

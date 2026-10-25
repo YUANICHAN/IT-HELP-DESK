@@ -1,6 +1,9 @@
 import { currentAccess } from "../access/currentAccess.service.js";
 import { linkTicketAssets } from "../assets/assetSelection.service.js";
-import { loadAccessibleTicket } from "./ticketOperations.service.js";
+import { loadAccessibleTicket, recordTicketChange } from "./ticketOperations.service.js";
+import { configuredApprover } from "../approvals/approval.policy.js";
+import { createApproval } from "../approvals/approvalLifecycle.service.js";
+import { SlaPause } from "../service-levels/slaPause.model.js";
 import mongoose from "mongoose";
 import { recordRequiredAuditEvent } from "../auth/audit.service.js";
 import { loadTicketConfiguration } from "../service-levels/configuration.service.js";
@@ -207,17 +210,6 @@ export async function createTicket({ authentication, input, idempotencyKey, meta
   const prior = await replay(authentication, operation, idempotencyKey, digest);
   if (prior) return prior;
 
-  const preflight = await loadTicketConfiguration({
-    organizationId: authentication.user.organizationId,
-    serviceItemId: input.serviceItemId,
-  });
-  if (preflight.serviceItem.requiresApproval) {
-    throw new AppError(
-      409,
-      "APPROVAL_WORKFLOW_REQUIRED",
-      "This service item requires approval. Approval-backed ticket creation is not available yet.",
-    );
-  }
   await validateLocation(
     authentication.user.organizationId,
     authentication.user.departmentId,
@@ -234,13 +226,8 @@ export async function createTicket({ authentication, input, idempotencyKey, meta
           serviceItemId: input.serviceItemId,
           mongoSession,
         });
-        if (configuration.serviceItem.requiresApproval) {
-          throw new AppError(
-            409,
-            "APPROVAL_WORKFLOW_REQUIRED",
-            "This service item requires approval. Approval-backed ticket creation is not available yet.",
-          );
-        }
+        const approver = await configuredApprover(actor, configuration.serviceItem, mongoSession);
+        const approvalRequired = configuration.serviceItem.requiresApproval;
         const location = await validateLocation(
           actor.organization,
           actor.department,
@@ -267,14 +254,15 @@ export async function createTicket({ authentication, input, idempotencyKey, meta
               serviceItem: configuration.serviceItem._id,
               location: location?._id,
               type: configuration.serviceItem.ticketType,
-              approvalRequired: false,
-              approvalStatus: "NOT_REQUIRED",
+              approvalRequired,
+              approvalStatus: approvalRequired ? "PENDING" : "NOT_REQUIRED",
+              currentApprovalRound: approvalRequired ? 1 : 0,
               title: input.title,
               description: input.description,
               urgency: input.urgency,
               impact: "MEDIUM",
               priority: PRIORITY_MATRIX.MEDIUM[input.urgency],
-              status: "NEW",
+              status: approvalRequired ? "WAITING_APPROVAL" : "NEW",
               assignee: null,
               submittedAt,
               configurationSnapshots: configuration.snapshots,
@@ -303,7 +291,7 @@ export async function createTicket({ authentication, input, idempotencyKey, meta
             ticket: ticket._id,
             type: "CREATED",
             actor: actor._id,
-            data: { reference: ticket.reference, status: "NEW" },
+            data: { reference: ticket.reference, status: ticket.status },
             occurredAt: submittedAt,
           },
           mongoSession,
@@ -314,12 +302,21 @@ export async function createTicket({ authentication, input, idempotencyKey, meta
         );
         await createOutbox(
           ticketOutbox(ticket, "TICKET_CREATED", {
-            userIds: [],
-            capability: "support",
+            userIds: approvalRequired ? [ticket.requester] : [],
+            capability: approvalRequired ? "ticket_triage" : "support",
             department: actor.department,
           }),
           mongoSession,
         );
+        if (approvalRequired) {
+          const approval = await createApproval(ticket, approver, submittedAt, mongoSession);
+          await SlaPause.create([{ organization: ticket.organization, ticket: ticket._id, cycleNumber: 1,
+            clock: "RESOLUTION", reason: "WAITING_APPROVAL", startedAt: submittedAt }], { session: mongoSession });
+          await recordTicketChange({ auth: fresh, ticket, type: "APPROVAL_REQUESTED",
+            data: { approvalId: approval.id, round: approval.round },
+            recipients: { userIds: [approver, ticket.requester], capability: "ticket_triage", department: ticket.requesterDepartment },
+            metadata, session: mongoSession });
+        }
         await saveIdempotencyRecord(
           {
             organization: actor.organization,

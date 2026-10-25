@@ -70,9 +70,9 @@ const ticketSchema = new Schema(
     approvalStatus: {
       type: String,
       required: true,
-      enum: ["NOT_REQUIRED", "PENDING", "APPROVED", "REJECTED"],
-      immutable: true,
+      enum: ["NOT_REQUIRED", "PENDING", "APPROVED", "REJECTED", "SUPERSEDED"],
     },
+    currentApprovalRound: { type: Number, default: 0, min: 0, validate: Number.isSafeInteger },
     title: {
       type: String,
       required: true,

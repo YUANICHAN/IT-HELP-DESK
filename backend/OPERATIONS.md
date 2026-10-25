@@ -400,11 +400,10 @@ so Postman supplies the boundary. Use the same cookie jar for the download GET.
 
 ## Explicit limitations
 
-Approval-required creation remains `409 APPROVAL_WORKFLOW_REQUIRED`. Since the
-repository has no approval model/service, cancellation of an imported pending
-approval is also blocked; it cannot safely supersede that approval atomically.
-No approval rule is bypassed. CLOSED, REJECTED, CANCELLED are terminal, and
-automatic closure remains disabled.
+Step 8 now implements approval-required creation, decisions, rerouting and atomic
+cancellation of pending rounds; see [the approvals guide](APPROVALS.md). Malformed
+imported approval tickets without a valid round remain blocked. CLOSED, REJECTED
+and CANCELLED are terminal, and automatic closure remains disabled.
 
 Outbox events are committed but no delivery worker exists. A future worker must
 reauthorize recipients and source records at delivery time; events contain

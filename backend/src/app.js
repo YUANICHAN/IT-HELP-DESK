@@ -7,6 +7,7 @@ import accessRoutes from "./modules/access/access.routes.js";
 import ticketRoutes, { queueRouter } from "./modules/tickets/ticket.routes.js";
 import assetRoutes from "./modules/assets/assets.routes.js";
 import attachmentRoutes from "./modules/attachments/attachment.routes.js";
+import approvalRoutes from "./modules/approvals/approvals.routes.js";
 import { AppError } from "./shared/errors/app-error.js";
 
 const app = express();
@@ -47,6 +48,7 @@ app.use("/api/v1/tickets", ticketRoutes);
 app.use("/api/v1/queue", queueRouter);
 app.use("/api/v1/assets", assetRoutes);
 app.use("/api/v1/attachments", attachmentRoutes);
+app.use("/api/v1/approvals", approvalRoutes);
 
 app.use((req, res) => {
   res.status(404).json({

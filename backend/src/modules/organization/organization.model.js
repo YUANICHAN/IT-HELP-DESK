@@ -50,6 +50,7 @@ const organizationSchema = new Schema(
       maxlength: [320, "Support email cannot exceed 320 characters."],
       match: [EMAIL_PATTERN, "Support email must be a valid email address."],
     },
+    backupApprover: { type: Schema.Types.ObjectId, ref: "User", default: null },
     isActive: {
       type: Boolean,
       default: true,
@@ -61,6 +62,13 @@ const organizationSchema = new Schema(
     timestamps: true,
   },
 );
+
+organizationSchema.pre("validate", async function () {
+  if (!this.backupApprover) return;
+  const { User } = await import("../users/user.model.js");
+  const user = await User.findOne({ _id: this.backupApprover, organization: this._id }).session(this.$session());
+  if (!user) this.invalidate("backupApprover", "Backup approver must belong to this organization.");
+});
 
 export const Organization =
   mongoose.models.Organization ||

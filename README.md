@@ -3,3 +3,6 @@ A MERN-based IT Help Desk and Asset Management System for internal support, tick
 
 Backend setup, Step 6 ticket operations, Step 7 asset custody, index migration,
 replica-set tests, and PowerShell/Postman examples: [Operations guide](backend/OPERATIONS.md).
+
+Step 8 named service-request approvals, fallback selection, audited rerouting,
+setup and runnable request examples: [Approvals guide](backend/APPROVALS.md).

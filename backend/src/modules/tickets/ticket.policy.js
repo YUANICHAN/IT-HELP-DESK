@@ -39,7 +39,7 @@ export function buildTicketAccessFilter(authentication) {
         {
           assignee: null,
           status: { $in: ["NEW", "OPEN"] },
-          approvalStatus: "NOT_REQUIRED",
+          approvalStatus: { $in: ["NOT_REQUIRED", "APPROVED"] },
         },
       ],
     });
@@ -70,7 +70,7 @@ export function buildQueueAccessFilter(authentication) {
     ...supportCondition,
     assignee: null,
     status: { $in: ["NEW", "OPEN"] },
-    approvalStatus: "NOT_REQUIRED",
+    approvalStatus: { $in: ["NOT_REQUIRED", "APPROVED"] },
   };
 }
 
@@ -100,7 +100,7 @@ export function canTriage(authentication, ticket) {
 export function canViewInternal(authentication, ticket) {
   const department = ticket.requesterDepartment?._id || ticket.requesterDepartment;
   const assignee = (ticket.assignee?._id || ticket.assignee)?.toString();
-  return canTriage(authentication, ticket) || (canUseSupportScope(authentication, department) && (assignee === authentication.user.id || (!assignee && ["NEW", "OPEN"].includes(ticket.status) && ticket.approvalStatus === "NOT_REQUIRED")));
+  return canTriage(authentication, ticket) || (canUseSupportScope(authentication, department) && (assignee === authentication.user.id || (!assignee && ["NEW", "OPEN"].includes(ticket.status) && ["NOT_REQUIRED", "APPROVED"].includes(ticket.approvalStatus))));
 }
 
 export function isAssignedTechnician(authentication, ticket) {

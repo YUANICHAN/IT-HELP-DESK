@@ -1,5 +1,75 @@
 # Changed files
 
+## Step 8
+
+The Step 8 working-tree changes are listed below. No frontend files or runtime
+dependencies changed. See [APPROVALS.md](APPROVALS.md) for setup, behavior,
+PowerShell/Postman requests and limitations, and [VERIFICATION.md](VERIFICATION.md)
+for actual test results.
+
+New approval module:
+
+- [approval.model.js](src/modules/approvals/approval.model.js): historical rounds,
+  actor/reference validation and actual unique-index definitions.
+- [approval.policy.js](src/modules/approvals/approval.policy.js): configured primary/
+  backup eligibility, named approver authority and shared fulfillment gate.
+- [approvalLifecycle.service.js](src/modules/approvals/approvalLifecycle.service.js):
+  pending round creation, supersession and approval pause completion.
+- [approvals.service.js](src/modules/approvals/approvals.service.js): authorized
+  inbox/history, transaction-backed decisions/reroutes and reauthorized retries.
+- [approval.serializer.js](src/modules/approvals/approval.serializer.js): public-only
+  decision context; internal reroute reasons restricted to triage history.
+- [approvals.validation.js](src/modules/approvals/approvals.validation.js): bounded
+  exact command bodies, version checks and allowlisted inbox filters/sorting.
+- [approvals.controller.js](src/modules/approvals/approvals.controller.js) and
+  [approvals.routes.js](src/modules/approvals/approvals.routes.js): thin HTTP layer
+  using existing authentication, CSRF, errors and request metadata.
+
+Existing integration points:
+
+- [src/app.js](src/app.js): approval route registration.
+- [ticket.service.js](src/modules/tickets/ticket.service.js): atomic approval-required
+  submission, frozen requirement, initial round/pause and safe notifications.
+- [ticketOperations.service.js](src/modules/tickets/ticketOperations.service.js):
+  fulfillment gate, pending approval cancellation and safe notification recipients.
+- [ticket.model.js](src/modules/tickets/ticket.model.js),
+  [ticket.policy.js](src/modules/tickets/ticket.policy.js),
+  [ticket.routes.js](src/modules/tickets/ticket.routes.js),
+  [ticket.serializer.js](src/modules/tickets/ticket.serializer.js), and
+  [ticketEvent.model.js](src/modules/tickets/ticketEvent.model.js): current round,
+  approved queue access, history/reroute routes and event types.
+- [organization.model.js](src/modules/organization/organization.model.js): explicit
+  same-organization backup approver configuration.
+- [serviceItem.model.js](src/modules/catalog/serviceItem.model.js): incidents cannot
+  require approval.
+- [slaPause.model.js](src/modules/service-levels/slaPause.model.js),
+  [slaCycle.model.js](src/modules/service-levels/slaCycle.model.js), and
+  [slaClock.service.js](src/modules/service-levels/slaClock.service.js): approval
+  pause reason, REJECTED outcome and target-eligibility reporting.
+- [authenticationAudit.model.js](src/modules/auth/authenticationAudit.model.js) and
+  [idempotencyKey.model.js](src/shared/database/idempotencyKey.model.js): approval
+  audit types and idempotent approval resources.
+- [create-indexes.js](scripts/create-indexes.js): additive non-approval ticket
+  backfill; existing model registry creates the approval indexes.
+
+Delivery and verification:
+
+- [approvals.integration.test.js](test/approvals.integration.test.js): new replica-set
+  coverage and deterministic approval SLA clock checks.
+- [ticket.integration.test.js](test/ticket.integration.test.js): expected recoverable
+  configuration error replaces the unavailable-module expectation.
+- [operations.integration.test.js](test/operations.integration.test.js): labels the
+  malformed imported approval guard accurately; prior assertion remains intact.
+- [seed-approvals.js](scripts/seed-approvals.js), [package.json](package.json):
+  repeatable, isolated synthetic Step 8 seed and npm command.
+- [approvals.ps1](examples/approvals.ps1): executed PowerShell walkthrough with
+  separate cookies/CSRF, versions, keys and configuration-failure example.
+- [APPROVALS.md](APPROVALS.md), [OPERATIONS.md](OPERATIONS.md),
+  [VERIFICATION.md](VERIFICATION.md), this inventory and [README.md](../README.md):
+  current setup, examples, limitations and verification evidence.
+
+## Steps 6 and 7 baseline
+
 61 files changed or added for Steps 6 and 7. No frontend files or runtime dependencies changed.
 
 ## Ticket operations
@@ -97,5 +167,4 @@ Environment examples, npm commands, API/verification guides and generated-storag
 - [backend/TICKET_WORKFLOW.md](TICKET_WORKFLOW.md)
 - [backend/VERIFICATION.md](VERIFICATION.md)
 - [backend/package.json](package.json)
-
 
