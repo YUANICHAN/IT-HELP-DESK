@@ -9,7 +9,7 @@ import { hasDepartmentCapability } from "../access/scopeFilters.js";
 import { AccessGrant } from "../access/accessGrant.model.js";
 import { User } from "../users/user.model.js";
 import { recordRequiredAuditEvent } from "../auth/audit.service.js";
-import { OutboxEvent } from "../outbox/outboxEvent.model.js";
+import { enqueueTicketNotifications } from "../notifications/ticketNotifications.service.js";
 import { SlaCycle } from "../service-levels/slaCycle.model.js";
 import { reopenDeadline } from "../service-levels/businessTime.js";
 import {
@@ -80,19 +80,18 @@ export async function recordTicketChange({
   type,
   data = {},
   visibility = "PUBLIC",
-  recipients,
-  notificationVisibility = visibility,
   metadata = {},
   session
 }) {
-  await TicketEvent.create([{
+  const occurredAt = clockNow();
+  const [event] = await TicketEvent.create([{
     organization: ticket.organization,
     ticket: ticket._id,
     actor: auth.user.id,
     type,
     data,
     visibility,
-    occurredAt: clockNow()
+    occurredAt
   }], {
     session
   });
@@ -107,30 +106,14 @@ export async function recordTicketChange({
     ticketReference: ticket.reference,
     ...metadata
   }, session);
-  // No content, filenames, notes, or private previews in delivery records. Consumers must reauthorize.
-  await OutboxEvent.create([{
-    organization: ticket.organization,
-    aggregateType: "TICKET",
-    aggregateId: ticket._id,
-    eventType: `TICKET_${type}`,
-    visibility: notificationVisibility,
-    requiresAuthorization: true,
-    recipients: recipients || (visibility === "INTERNAL" ? {
-      userIds: [],
-      capability: "ticket_triage",
-      department: ticket.requesterDepartment
-    } : {
-      userIds: [ticket.requester]
-    }),
-    payload: {
-      ticketId: idOf(ticket),
-      reference: ticket.reference,
-      ...(type.startsWith("APPROVAL_") ? { approvalId: data.approvalId, round: data.round } : {})
-    },
-    status: "PENDING"
-  }], {
-    session
-  });
+  await enqueueTicketNotifications({
+    ticket,
+    event,
+    type,
+    actorId: auth.user.id,
+    data,
+    occurredAt,
+  }, session);
 }
 export async function bumpTicket(ticket, expectedVersion, set, session, extra = {}) {
   if (ticket.version !== expectedVersion) throw new AppError(409, "STALE_TICKET_VERSION", "The ticket changed. Refresh it and retry.");

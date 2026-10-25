@@ -1,32 +1,9 @@
-import { AccessGrant } from "../access/accessGrant.model.js";
 import { recordRequiredAuditEvent } from "../auth/audit.service.js";
-import { OutboxEvent } from "../outbox/outboxEvent.model.js";
-import { User } from "../users/user.model.js";
+import { enqueueTicketNotifications } from "../notifications/ticketNotifications.service.js";
 import { TicketEvent } from "../tickets/ticketEvent.model.js";
 import { addBusinessMillisecondsWithPauses } from "./businessTime.js";
 import { measureCycle } from "./slaClock.service.js";
 import { SlaBreach } from "./slaBreach.model.js";
-
-async function eligibleAssignedTechnician(ticket, session) {
-  if (!ticket.assignee) return [];
-  const [user, grant] = await Promise.all([
-    User.exists({
-      _id: ticket.assignee,
-      organization: ticket.organization,
-      role: "TECHNICIAN",
-      accountStatus: "ACTIVE",
-    }).session(session),
-    AccessGrant.exists({
-      organization: ticket.organization,
-      user: ticket.assignee,
-      capability: "support",
-      isActive: true,
-      revokedAt: { $exists: false },
-      $or: [{ department: ticket.requesterDepartment }, { department: null }],
-    }).session(session),
-  ]);
-  return user && grant ? [ticket.assignee] : [];
-}
 
 function resolutionBreachDue(cycle, pauses, at, budgetSeconds) {
   return addBusinessMillisecondsWithPauses(
@@ -88,7 +65,7 @@ export async function ensureMetricBreach({
     priority: cycle.priority,
     budgetSeconds: result.currentBudgetSeconds,
   };
-  await TicketEvent.create([{
+  const [event] = await TicketEvent.create([{
     organization: ticket.organization,
     ticket: ticket._id,
     actor: actorId,
@@ -107,25 +84,13 @@ export async function ensureMetricBreach({
     ticketReference: ticket.reference,
     occurredAt: detectedAt,
   }, session);
-  await OutboxEvent.create([{
-    organization: ticket.organization,
-    aggregateType: "TICKET",
-    aggregateId: ticket._id,
-    eventType: `TICKET_${type}`,
-    visibility: "INTERNAL",
-    requiresAuthorization: true,
-    recipients: {
-      userIds: await eligibleAssignedTechnician(ticket, session),
-      capability: "ticket_triage",
-      department: ticket.requesterDepartment,
-    },
-    payload: {
-      ticketId: ticket._id.toString(),
-      reference: ticket.reference,
-      metric,
-      cycleNumber: cycle.cycleNumber,
-    },
-    status: "PENDING",
-  }], { session });
+  await enqueueTicketNotifications({
+    ticket,
+    event,
+    type,
+    actorId,
+    data,
+    occurredAt: detectedAt,
+  }, session);
   return breach;
 }

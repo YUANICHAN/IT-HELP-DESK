@@ -15,7 +15,7 @@ import { ticketSlaCycles } from "../service-levels/slaClock.service.js";
 import { requesterSafeCycle } from "../service-levels/serviceLevel.serializer.js";
 import { Location } from "../organization/location.model.js";
 import { User } from "../users/user.model.js";
-import { OutboxEvent } from "../outbox/outboxEvent.model.js";
+import { enqueueTicketNotifications } from "../notifications/ticketNotifications.service.js";
 import {
   assertIdempotencyInput,
   findIdempotencyRecord,
@@ -110,11 +110,8 @@ async function activeActor(authentication, mongoSession) {
 }
 
 async function createEvent(document, mongoSession) {
-  await TicketEvent.create([document], { session: mongoSession });
-}
-
-async function createOutbox(document, mongoSession) {
-  await OutboxEvent.create([document], { session: mongoSession });
+  const [event] = await TicketEvent.create([document], { session: mongoSession });
+  return event;
 }
 
 function auditDocument(eventType, authentication, ticket, metadata) {
@@ -128,18 +125,6 @@ function auditDocument(eventType, authentication, ticket, metadata) {
     ticket: ticket._id,
     ticketReference: ticket.reference,
     ...metadata,
-  };
-}
-
-function ticketOutbox(ticket, eventType, recipients, payload = {}) {
-  return {
-    organization: ticket.organization,
-    eventType,
-    aggregateType: "TICKET",
-    aggregateId: ticket._id,
-    recipients,
-    payload: { ticketId: ticket._id.toString(), reference: ticket.reference, ...payload },
-    status: "PENDING",
   };
 }
 
@@ -292,7 +277,7 @@ export async function createTicket({ authentication, input, idempotencyKey, meta
           ],
           { session: mongoSession },
         );
-        await createEvent(
+        const createdEvent = await createEvent(
           {
             organization: actor.organization,
             ticket: ticket._id,
@@ -307,14 +292,14 @@ export async function createTicket({ authentication, input, idempotencyKey, meta
           auditDocument("TICKET_CREATED", authentication, ticket, metadata),
           mongoSession,
         );
-        await createOutbox(
-          ticketOutbox(ticket, "TICKET_CREATED", {
-            userIds: approvalRequired ? [ticket.requester] : [],
-            capability: approvalRequired ? "ticket_triage" : "support",
-            department: actor.department,
-          }),
-          mongoSession,
-        );
+        await enqueueTicketNotifications({
+          ticket,
+          event: createdEvent,
+          type: "CREATED",
+          actorId: actor._id,
+          data: { reference: ticket.reference },
+          occurredAt: submittedAt,
+        }, mongoSession);
         if (approvalRequired) {
           const approval = await createApproval(ticket, approver, submittedAt, mongoSession);
           await openResolutionPause(

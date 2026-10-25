@@ -12,10 +12,11 @@ import { Location } from "../organization/location.model.js";
 import { Ticket } from "../tickets/ticket.model.js";
 import { buildTicketAccessFilter } from "../tickets/ticket.policy.js";
 import { recordRequiredAuditEvent } from "../auth/audit.service.js";
-import { OutboxEvent } from "../outbox/outboxEvent.model.js";
+import { enqueueAssetNotifications } from "../notifications/assetNotifications.service.js";
 import { executeCommand } from "../../shared/database/command.js";
 import { AppError } from "../../shared/errors/app-error.js";
 import { idOf, same } from "../../shared/validation/commands.js";
+import { clockNow } from "../../shared/time/clock.js";
 function notFound() {
   return new AppError(404, "ASSET_NOT_FOUND", "Asset was not found.");
 }
@@ -52,13 +53,14 @@ async function references(auth, departmentId, locationId, session) {
   };
 }
 async function recordChange(auth, asset, type, data, metadata, session) {
-  await AssetEvent.create([{
+  const occurredAt = clockNow();
+  const [event] = await AssetEvent.create([{
     organization: asset.organization,
     asset: asset._id,
     actor: auth.user.id,
     type,
     data,
-    occurredAt: new Date()
+    occurredAt
   }], {
     session
   });
@@ -72,25 +74,7 @@ async function recordChange(auth, asset, type, data, metadata, session) {
     asset: asset._id,
     ...metadata
   }, session);
-  await OutboxEvent.create([{
-    organization: asset.organization,
-    aggregateType: "ASSET",
-    aggregateId: asset._id,
-    eventType: `ASSET_${type}`,
-    visibility: "ASSET_MANAGERS",
-    requiresAuthorization: true,
-    recipients: {
-      userIds: [],
-      capability: "asset_manage",
-      department: asset.department
-    },
-    payload: {
-      assetId: idOf(asset)
-    },
-    status: "PENDING"
-  }], {
-    session
-  });
+  await enqueueAssetNotifications({ asset, event, type, data, occurredAt }, session);
 }
 export async function assetCommand({
   authentication,
