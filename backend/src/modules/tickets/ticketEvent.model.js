@@ -12,6 +12,7 @@ export const TICKET_EVENT_TYPES = Object.freeze([
   "CLOSED",
   "UPDATED", "TRIAGED", "ASSIGNED", "WAITING", "RESUMED", "CANCELLED", "REOPENED",
   "INTERNAL_NOTE_ADDED", "WORKLOG_ADDED", "ATTACHMENT_RESERVED", "ATTACHMENT_READY", "ATTACHMENT_REJECTED", "ATTACHMENT_DELETED",
+  "SLA_RESPONSE_BREACHED", "SLA_RESOLUTION_BREACHED",
 ]);
 
 const ticketEventSchema = new Schema(
@@ -19,7 +20,7 @@ const ticketEventSchema = new Schema(
     organization: { type: Schema.Types.ObjectId, ref: "Organization", required: true, immutable: true },
     ticket: { type: Schema.Types.ObjectId, ref: "Ticket", required: true, immutable: true },
     type: { type: String, required: true, enum: TICKET_EVENT_TYPES, immutable: true },
-    actor: { type: Schema.Types.ObjectId, ref: "User", required: true, immutable: true },
+    actor: { type: Schema.Types.ObjectId, ref: "User", default: undefined, immutable: true },
     data: { type: Schema.Types.Mixed, required: true, default: () => ({}), immutable: true },
     visibility: { type: String, enum: ["PUBLIC", "INTERNAL"], default: "PUBLIC", immutable: true },
     occurredAt: { type: Date, required: true, default: Date.now, immutable: true },

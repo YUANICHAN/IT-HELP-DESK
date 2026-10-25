@@ -3,12 +3,16 @@ import { linkTicketAssets } from "../assets/assetSelection.service.js";
 import { loadAccessibleTicket, recordTicketChange } from "./ticketOperations.service.js";
 import { configuredApprover } from "../approvals/approval.policy.js";
 import { createApproval } from "../approvals/approvalLifecycle.service.js";
-import { SlaPause } from "../service-levels/slaPause.model.js";
+import {
+  cycleCreationFields,
+  openResolutionPause,
+} from "../service-levels/slaLifecycle.service.js";
 import mongoose from "mongoose";
 import { recordRequiredAuditEvent } from "../auth/audit.service.js";
 import { loadTicketConfiguration } from "../service-levels/configuration.service.js";
 import { SlaCycle } from "../service-levels/slaCycle.model.js";
 import { ticketSlaCycles } from "../service-levels/slaClock.service.js";
+import { requesterSafeCycle } from "../service-levels/serviceLevel.serializer.js";
 import { Location } from "../organization/location.model.js";
 import { User } from "../users/user.model.js";
 import { OutboxEvent } from "../outbox/outboxEvent.model.js";
@@ -38,6 +42,7 @@ import {
   serializeEvent,
   serializeTicket,
 } from "./ticket.serializer.js";
+import { clockNow } from "../../shared/time/clock.js";
 
 function validObjectId(value) {
   return mongoose.isObjectIdOrHexString(value);
@@ -237,9 +242,10 @@ export async function createTicket({ authentication, input, idempotencyKey, meta
         const fresh = await currentAccess(authentication, mongoSession);
         const assetSnapshots = await linkTicketAssets(fresh, configuration.serviceItem, input.assetIds || [], input.primaryAssetId, input.locationId, mongoSession);
         if (input.followUpOfId) await loadAccessibleTicket(fresh, input.followUpOfId, mongoSession);
-        const submittedAt = new Date();
+        const submittedAt = clockNow();
         const year = yearInTimezone(submittedAt, authentication.organization.timezone);
         const reference = await nextReference(actor.organization, year, mongoSession);
+        const priority = PRIORITY_MATRIX.MEDIUM[input.urgency];
         const [ticket] = await Ticket.create(
           [
             {
@@ -261,7 +267,7 @@ export async function createTicket({ authentication, input, idempotencyKey, meta
               description: input.description,
               urgency: input.urgency,
               impact: "MEDIUM",
-              priority: PRIORITY_MATRIX.MEDIUM[input.urgency],
+              priority,
               status: approvalRequired ? "WAITING_APPROVAL" : "NEW",
               assignee: null,
               submittedAt,
@@ -281,6 +287,7 @@ export async function createTicket({ authentication, input, idempotencyKey, meta
               originalSubmittedAt: submittedAt,
               startedAt: submittedAt,
               configurationSnapshots: configuration.snapshots,
+              ...cycleCreationFields(configuration.snapshots, priority, submittedAt),
             },
           ],
           { session: mongoSession },
@@ -310,8 +317,13 @@ export async function createTicket({ authentication, input, idempotencyKey, meta
         );
         if (approvalRequired) {
           const approval = await createApproval(ticket, approver, submittedAt, mongoSession);
-          await SlaPause.create([{ organization: ticket.organization, ticket: ticket._id, cycleNumber: 1,
-            clock: "RESOLUTION", reason: "WAITING_APPROVAL", startedAt: submittedAt }], { session: mongoSession });
+          await openResolutionPause(
+            ticket,
+            "WAITING_APPROVAL",
+            submittedAt,
+            actor._id,
+            mongoSession,
+          );
           await recordTicketChange({ auth: fresh, ticket, type: "APPROVAL_REQUESTED",
             data: { approvalId: approval.id, round: approval.round },
             recipients: { userIds: [approver, ticket.requester], capability: "ticket_triage", department: ticket.requesterDepartment },
@@ -369,7 +381,13 @@ export async function listTickets({ authentication, filters, queue = false }) {
 
 export async function getTicket(authentication, ticketId) {
   const ticket = await accessibleTicket(authentication, ticketId);
-  return { ...serializeTicket(authentication, ticket), slaCycles: await ticketSlaCycles(ticket) };
+  const cycles = await ticketSlaCycles(ticket);
+  return {
+    ...serializeTicket(authentication, ticket),
+    slaCycles: canViewInternal(authentication, ticket)
+      ? cycles
+      : cycles.map(requesterSafeCycle),
+  };
 }
 
 export async function listComments(authentication, ticketId, pagination) {

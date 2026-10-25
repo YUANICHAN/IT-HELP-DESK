@@ -6,6 +6,8 @@ import { serializeApproval } from "./approval.serializer.js";
 import { currentAccess } from "../access/currentAccess.service.js";
 import { Ticket } from "../tickets/ticket.model.js";
 import { SlaCycle } from "../service-levels/slaCycle.model.js";
+import { finishCycle } from "../service-levels/slaLifecycle.service.js";
+import { clockNow } from "../../shared/time/clock.js";
 import { bumpTicket, loadAccessibleTicket, recordTicketChange } from "../tickets/ticketOperations.service.js";
 import { canTriage } from "../tickets/ticket.policy.js";
 import { executeCommand } from "../../shared/database/command.js";
@@ -147,7 +149,7 @@ export async function decideApproval({
           $exists: false
         }
       }).session(session))) approvalConflict();
-      const now = new Date();
+      const now = clockNow();
       const updated = await bumpTicket(ticket, input.expectedVersion, {
         status: input.decision === "APPROVED" ? "OPEN" : "REJECTED",
         approvalStatus: input.decision
@@ -168,25 +170,15 @@ export async function decideApproval({
         runValidators: true
       });
       if (result.matchedCount !== 1) approvalConflict();
-      await endApprovalPause(ticket, now, session);
+      await endApprovalPause(
+        ticket,
+        now,
+        auth.user.id,
+        input.decision,
+        session,
+      );
       if (input.decision === "REJECTED") {
-        const ended = await SlaCycle.updateOne({
-          organization: ticket.organization,
-          ticket: ticket._id,
-          cycleNumber: ticket.slaCycleNumber,
-          endedAt: {
-            $exists: false
-          }
-        }, {
-          $set: {
-            endedAt: now,
-            endReason: "REJECTED"
-          }
-        }, {
-          session,
-          runValidators: true
-        });
-        if (ended.matchedCount !== 1) approvalConflict();
+        await finishCycle(ticket, now, "REJECTED", auth.user.id, session);
       }
       await recordTicketChange({
         auth,
@@ -265,7 +257,7 @@ export async function rerouteApproval({
       }).session(session);
       requirePendingRound(ticket, old);
       if (same(old.approver, input.approverId)) throw new AppError(422, "APPROVER_UNCHANGED", "Select a different eligible approver.");
-      const now = new Date();
+      const now = clockNow();
       const updated = await bumpTicket(ticket, input.expectedVersion, {
         currentApprovalRound: ticket.currentApprovalRound + 1
       }, session);

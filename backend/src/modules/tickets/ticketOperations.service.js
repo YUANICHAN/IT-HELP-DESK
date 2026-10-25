@@ -11,8 +11,16 @@ import { User } from "../users/user.model.js";
 import { recordRequiredAuditEvent } from "../auth/audit.service.js";
 import { OutboxEvent } from "../outbox/outboxEvent.model.js";
 import { SlaCycle } from "../service-levels/slaCycle.model.js";
-import { SlaPause } from "../service-levels/slaPause.model.js";
 import { reopenDeadline } from "../service-levels/businessTime.js";
+import {
+  applyPriorityChange,
+  closeResolutionPause,
+  completeFirstResponse,
+  cycleCreationFields,
+  finishCycle,
+  openResolutionPause,
+} from "../service-levels/slaLifecycle.service.js";
+import { clockNow } from "../../shared/time/clock.js";
 import { Ticket } from "./ticket.model.js";
 import { TicketComment } from "./ticketComment.model.js";
 import { TicketEvent } from "./ticketEvent.model.js";
@@ -84,7 +92,7 @@ export async function recordTicketChange({
     type,
     data,
     visibility,
-    occurredAt: new Date()
+    occurredAt: clockNow()
   }], {
     session
   });
@@ -145,39 +153,12 @@ export async function bumpTicket(ticket, expectedVersion, set, session, extra = 
   if (!updated) conflict();
   return updated;
 }
-async function closePause(ticket, now, session) {
-  await SlaPause.updateOne({
-    organization: ticket.organization,
-    ticket: ticket._id,
-    cycleNumber: ticket.slaCycleNumber || 1,
-    endedAt: null
-  }, {
-    $set: {
-      endedAt: now
-    }
-  }, {
-    session
-  });
+async function closePause(ticket, now, actorId, endReason, session) {
+  await closeResolutionPause(ticket, now, actorId, endReason, session);
 }
-async function firstResponse(ticket, now, set, session) {
+async function firstResponse(ticket, now, set, actorId, session) {
   if (!ticket.firstResponseAt) set.firstResponseAt = now;
-  await SlaCycle.updateOne({
-    organization: ticket.organization,
-    ticket: ticket._id,
-    cycleNumber: ticket.slaCycleNumber || 1,
-    firstResponseAt: {
-      $exists: false
-    },
-    endedAt: {
-      $exists: false
-    }
-  }, {
-    $set: {
-      firstResponseAt: now
-    }
-  }, {
-    session
-  });
+  await completeFirstResponse(ticket, now, actorId, session);
 }
 async function publicReply(ticket, auth, body, kind, session) {
   const [comment] = await TicketComment.create([{
@@ -267,7 +248,7 @@ export async function runTicketCommand({
       const triage = canTriage(auth, ticket),
         assigned = isAssignedTechnician(auth, ticket),
         requester = same(ticket.requester, auth.user.id);
-      const now = new Date(),
+      const now = clockNow(),
         set = {},
         data = {};
       let type,
@@ -317,6 +298,16 @@ export async function runTicketCommand({
           },
           calculatedPriority: calculated
         });
+        if ((input.priority || calculated) !== ticket.priority) {
+          data.slaPriorityChange = await applyPriorityChange(
+            ticket,
+            input.priority || calculated,
+            auth.user.id,
+            input.reason || "Triage recalculation",
+            now,
+            session,
+          );
+        }
         type = "TRIAGED";
       } else if (action === "claim" || action === "assignment") {
         requireActive();
@@ -331,7 +322,7 @@ export async function runTicketCommand({
         if (action === "claim" && ticket.status === "NEW") set.status = "OPEN";
         if (!assignee && ["IN_PROGRESS", "WAITING_REQUESTER", "WAITING_VENDOR"].includes(ticket.status)) {
           set.status = "OPEN";
-          await closePause(ticket, now, session);
+          await closePause(ticket, now, auth.user.id, "UNASSIGNED", session);
         }
         Object.assign(data, {
           previousAssigneeId: idOf(ticket.assignee) || null,
@@ -350,16 +341,16 @@ export async function runTicketCommand({
         if (ticket.status !== "IN_PROGRESS") conflict("Only active work can enter a waiting state.");
         set.status = input.status;
         const comment = await publicReply(ticket, auth, input.nextStep, "REPLY", session);
-        await firstResponse(ticket, now, set, session);
-        if (input.status === "WAITING_REQUESTER") await SlaPause.create([{
-          organization: ticket.organization,
-          ticket: ticket._id,
-          cycleNumber: ticket.slaCycleNumber || 1,
-          startedAt: now,
-          endedAt: null
-        }], {
-          session
-        });
+        await firstResponse(ticket, now, set, auth.user.id, session);
+        if (input.status === "WAITING_REQUESTER") {
+          await openResolutionPause(
+            ticket,
+            "WAITING_REQUESTER",
+            now,
+            auth.user.id,
+            session,
+          );
+        }
         data.commentId = idOf(comment);
         type = "WAITING";
       } else if (action === "resume") {
@@ -369,9 +360,9 @@ export async function runTicketCommand({
           if (!input.dependencyUpdate) throw new AppError(400, "DEPENDENCY_UPDATE_REQUIRED", "A dependency update is required.");
           const comment = await publicReply(ticket, auth, input.dependencyUpdate, "REPLY", session);
           data.commentId = idOf(comment);
-          await firstResponse(ticket, now, set, session);
+          await firstResponse(ticket, now, set, auth.user.id, session);
         }
-        await closePause(ticket, now, session);
+        await closePause(ticket, now, auth.user.id, "RESUMED", session);
         set.status = "IN_PROGRESS";
         type = "RESUMED";
       } else if (action === "comment") {
@@ -389,11 +380,13 @@ export async function runTicketCommand({
         data.commentId = idOf(comment);
         visibility = input.visibility;
         type = visibility === "INTERNAL" ? "INTERNAL_NOTE_ADDED" : "PUBLIC_REPLY_ADDED";
-        if (visibility === "PUBLIC" && !requester && (assigned || triage)) await firstResponse(ticket, now, set, session);
+        if (visibility === "PUBLIC" && !requester && (assigned || triage)) {
+          await firstResponse(ticket, now, set, auth.user.id, session);
+        }
         if (visibility === "PUBLIC" && requester && ticket.status === "WAITING_REQUESTER") {
           set.status = (await eligibleAssignee(ticket, ticket.assignee, session)) ? "IN_PROGRESS" : "OPEN";
           if (set.status === "OPEN") set.assignee = null;
-          await closePause(ticket, now, session);
+          await closePause(ticket, now, auth.user.id, "REQUESTER_REPLIED", session);
         }
       } else if (action === "worklog") {
         if (!assigned) forbidden();
@@ -418,7 +411,13 @@ export async function runTicketCommand({
         if (![...ACTIVE_STATUSES, "WAITING_APPROVAL"].includes(ticket.status)) conflict("Only non-resolved active tickets can be cancelled.");
         if (ticket.approvalStatus === "PENDING" || ticket.status === "WAITING_APPROVAL") {
           const approval = await supersedeApproval(ticket, auth.user.id, input.reason, now, session);
-          await endApprovalPause(ticket, now, session);
+          await endApprovalPause(
+            ticket,
+            now,
+            auth.user.id,
+            "CANCELLED",
+            session,
+          );
           set.approvalStatus = "SUPERSEDED";
           await recordTicketChange({ auth, ticket, type: "APPROVAL_SUPERSEDED",
             data: { approvalId: approval.id, round: approval.round },
@@ -426,22 +425,8 @@ export async function runTicketCommand({
         }
         set.status = "CANCELLED";
         set.cancelledAt = now;
-        await closePause(ticket, now, session);
-        await SlaCycle.updateOne({
-          organization: ticket.organization,
-          ticket: ticket._id,
-          cycleNumber: ticket.slaCycleNumber || 1,
-          endedAt: {
-            $exists: false
-          }
-        }, {
-          $set: {
-            endedAt: now,
-            endReason: "CANCELLED"
-          }
-        }, {
-          session
-        });
+        await closePause(ticket, now, auth.user.id, "CANCELLED", session);
+        await finishCycle(ticket, now, "CANCELLED", auth.user.id, session);
         type = "CANCELLED";
       } else if (action === "resolve") {
         if (!assigned) forbidden();
@@ -453,26 +438,11 @@ export async function runTicketCommand({
           resolvedBy: auth.user.id,
           resolvedAt: now
         };
-        await firstResponse(ticket, now, set, session);
+        await firstResponse(ticket, now, set, auth.user.id, session);
         const comment = await publicReply(ticket, auth, input.summary, "RESOLUTION", session);
         data.commentId = idOf(comment);
         data.resolutionCode = input.resolutionCode;
-        const ended = await SlaCycle.updateOne({
-          organization: ticket.organization,
-          ticket: ticket._id,
-          cycleNumber: ticket.slaCycleNumber || 1,
-          endedAt: {
-            $exists: false
-          }
-        }, {
-          $set: {
-            endedAt: now,
-            endReason: "RESOLVED"
-          }
-        }, {
-          session
-        });
-        if (ended.matchedCount !== 1) conflict("The active SLA cycle is missing.");
+        await finishCycle(ticket, now, "RESOLVED", auth.user.id, session);
         type = "RESOLVED";
       } else if (action === "close") {
         if (!requester && !triage) forbidden();
@@ -497,7 +467,8 @@ export async function runTicketCommand({
           cycleNumber: set.slaCycleNumber,
           originalSubmittedAt: ticket.submittedAt,
           startedAt: now,
-          configurationSnapshots: ticket.configurationSnapshots
+          configurationSnapshots: ticket.configurationSnapshots,
+          ...cycleCreationFields(ticket.configurationSnapshots, ticket.priority, now)
         }], {
           session
         });

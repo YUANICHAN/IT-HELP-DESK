@@ -30,13 +30,34 @@ const schema = new Schema({
     immutable: true
   },
   reason: { type: String, enum: ["WAITING_REQUESTER", "WAITING_APPROVAL"], default: "WAITING_REQUESTER", immutable: true },
+  startedBy: {
+    type: Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+    immutable: true
+  },
   endedAt: {
     type: Date,
     default: null
+  },
+  endedBy: { type: Schema.Types.ObjectId, ref: "User", default: undefined },
+  endReason: {
+    type: String,
+    enum: ["APPROVED", "REJECTED", "REQUESTER_REPLIED", "RESUMED", "CANCELLED", "UNASSIGNED"],
+    default: undefined
   }
 }, {
   strict: "throw",
+  timestamps: true,
   versionKey: false
+});
+schema.pre("validate", function validateEndPair() {
+  if (Boolean(this.endedAt) !== Boolean(this.endedBy)) {
+    this.invalidate("endedBy", "Pause end time and ending actor must be stored together.");
+  }
+  if (this.endedAt && this.startedAt && this.endedAt < this.startedAt) {
+    this.invalidate("endedAt", "A pause cannot end before it starts.");
+  }
 });
 schema.index({
   organization: 1,

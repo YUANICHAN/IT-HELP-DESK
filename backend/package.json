@@ -7,6 +7,8 @@
     "test": "node --test --test-isolation=none --test-concurrency=1 test/*.test.js",
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
+    "worker": "node src/worker.js",
+    "worker:dev": "node --watch src/worker.js",
     "bootstrap:admin": "node scripts/bootstrap-admin.js",
     "db:indexes": "node scripts/create-indexes.js",
     "attachments:cleanup": "node scripts/cleanup-attachments.js",

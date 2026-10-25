@@ -1,6 +1,6 @@
 import { Approval } from "./approval.model.js";
 import { approvalConflict, requirePendingRound } from "./approval.policy.js";
-import { SlaPause } from "../service-levels/slaPause.model.js";
+import { closeResolutionPause } from "../service-levels/slaLifecycle.service.js";
 export async function createApproval(ticket, approver, now, session) {
   const [approval] = await Approval.create([{
     organization: ticket.organization,
@@ -14,21 +14,15 @@ export async function createApproval(ticket, approver, now, session) {
   });
   return approval;
 }
-export async function endApprovalPause(ticket, now, session) {
-  const result = await SlaPause.updateOne({
-    organization: ticket.organization,
-    ticket: ticket._id,
-    cycleNumber: ticket.slaCycleNumber,
-    reason: "WAITING_APPROVAL",
-    endedAt: null
-  }, {
-    $set: {
-      endedAt: now
-    }
-  }, {
-    session
-  });
-  if (result.matchedCount !== 1) approvalConflict();
+export async function endApprovalPause(ticket, now, actorId, endReason, session) {
+  const closed = await closeResolutionPause(
+    ticket,
+    now,
+    actorId,
+    endReason,
+    session,
+  );
+  if (!closed) approvalConflict();
 }
 export async function supersedeApproval(ticket, actorId, reason, now, session) {
   const approval = await Approval.findOne({

@@ -140,6 +140,20 @@ export const env = Object.freeze({
   host: process.env.HOST || "127.0.0.1",
   port,
   mongodbUri,
+  sla: Object.freeze({
+    evaluationIntervalSeconds: integerEnvironmentValue(
+      "SLA_EVALUATION_INTERVAL_SECONDS",
+      60,
+      5,
+      3600,
+    ),
+    evaluationBatchSize: integerEnvironmentValue(
+      "SLA_EVALUATION_BATCH_SIZE",
+      200,
+      1,
+      5000,
+    ),
+  }),
   auth: Object.freeze({
     cookieName,
     cookieSecure,

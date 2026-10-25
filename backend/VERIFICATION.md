@@ -1,5 +1,42 @@
 # Verification record
 
+## Step 9 - 2026-10-25
+
+Validated on Windows PowerShell with Node.js v24.19.0, npm 11.6.4, and
+MongoDB 8.2.3 using an isolated replica set named `step9` on
+`127.0.0.1:27019`.
+
+```powershell
+$env:TEST_MONGODB_URI = 'mongodb://127.0.0.1:27019/it_help_desk_test?replicaSet=step9'
+node --test --test-force-exit --test-isolation=none --test-concurrency=1 test/*.test.js
+```
+
+Latest full run: **78 passed, 0 failed, 0 skipped, 66.11 seconds.** It includes
+all authentication, access, approval, ticket, attachment, and asset regressions,
+the deterministic business-time cases, and the Step 9 replica-set suite.
+
+Step 9 coverage includes exact deadline boundaries; lunch, weekend, holiday,
+timezone, and DST calculations; concurrent breach evaluators; restart recovery;
+unique breach/event/audit/outbox artifacts; injected transaction rollback;
+requester-safe and staff service-level views; administrator denial; live scope
+revocation; requester and vendor waiting; configuration snapshot immutability;
+priority decreases and retained breach history; and reopening into a new cycle
+with the original configuration.
+
+Also verified:
+
+- `node --check` succeeded for all 112 JavaScript files under `src`, `scripts`,
+  and `test`, and `git diff --check` reported no whitespace errors.
+- `npm run db:indexes` succeeded on an isolated database. Inspection confirmed
+  the unique unfinished-cycle, open-pause, and organization/cycle/metric breach
+  indexes plus evaluator/history lookup indexes.
+- `npm run worker` connected to the isolated replica set, ran its immediate
+  evaluation, logged `SLA worker running.`, and handled SIGINT shutdown.
+
+Expected injected persistence failures appear in the full test output. Their
+tests assert transaction rollback and are passing behavior, not unresolved test
+failures. See [SLA behavior and operations](SLA_BEHAVIOR.md).
+
 ## Step 8 — 2026-10-25
 
 Validated on Windows PowerShell 5.1, Node.js v24.16.0, MongoDB 9.0, using the

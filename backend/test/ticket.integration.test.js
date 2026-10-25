@@ -264,7 +264,10 @@ test("first ticket workflow HTTP integration", async (context) => {
       organization: foreignOrganization._id,
       name: "Foreign Business Hours",
       timezone: "Asia/Manila",
-      weeklyWindows: [],
+      weeklyWindows: [
+        { day: "MONDAY", start: "08:00", end: "12:00" },
+        { day: "MONDAY", start: "13:00", end: "17:00" },
+      ],
       holidays: [],
     });
     const foreignPolicy = await SlaPolicy.create({
@@ -480,7 +483,7 @@ test("first ticket workflow HTTP integration", async (context) => {
       assert.equal(stored.requester.toString(), employeeA.id);
       assert.equal(stored.requesterDepartment.toString(), departmentA.id);
       assert.equal(stored.configurationSnapshots.service.configuration.formVersion, 1);
-      assert.equal(stored.configurationSnapshots.slaPolicy.targets.P2.responseMinutes, 30);
+      assert.equal(stored.configurationSnapshots.slaPolicy.targets.P2.responseSeconds, 30 * 60);
       assert.equal(stored.configurationSnapshots.businessCalendar.holidays[0].name, "Christmas Day");
       assert.equal(Object.hasOwn(stored, "dueAt"), false);
       assert.equal(await SlaCycle.countDocuments({ ticket: stored._id }), 1);

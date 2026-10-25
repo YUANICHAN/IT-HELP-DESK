@@ -1,6 +1,10 @@
 import mongoose from "mongoose";
 import { Organization } from "../organization/organization.model.js";
 import { requireReference } from "../../shared/validation/organization-reference.js";
+import {
+  DEFAULT_WEEKLY_WINDOWS,
+  normalizeCalendarSnapshot,
+} from "./businessTime.js";
 
 const { Schema } = mongoose;
 
@@ -29,7 +33,7 @@ const businessCalendarSchema = new Schema(
     weeklyWindows: {
       type: [Schema.Types.Mixed],
       required: true,
-      default: () => [],
+      default: () => DEFAULT_WEEKLY_WINDOWS.map((window) => ({ ...window })),
     },
     holidays: {
       type: [Schema.Types.Mixed],
@@ -41,6 +45,13 @@ const businessCalendarSchema = new Schema(
       required: true,
       default: true,
     },
+    revision: {
+      type: Number,
+      required: true,
+      default: 1,
+      min: 1,
+      validate: Number.isSafeInteger,
+    },
   },
   { strict: "throw", timestamps: true },
 );
@@ -51,6 +62,11 @@ businessCalendarSchema.index(
 );
 
 businessCalendarSchema.pre("validate", async function validateOrganization() {
+  try {
+    normalizeCalendarSnapshot(this);
+  } catch (error) {
+    this.invalidate("weeklyWindows", error.message);
+  }
   await requireReference({
     document: this,
     path: "organization",

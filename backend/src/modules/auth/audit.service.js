@@ -1,4 +1,5 @@
 import { AuthenticationAudit } from "./authenticationAudit.model.js";
+import { clockNow } from "../../shared/time/clock.js";
 
 function auditDocument(event) {
   return {
@@ -17,7 +18,7 @@ function auditDocument(event) {
     asset: event.asset,
     ipAddress: event.ipAddress,
     client: event.client,
-    occurredAt: new Date(),
+    occurredAt: event.occurredAt || clockNow(),
   };
 }
 

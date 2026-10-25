@@ -4,6 +4,9 @@ import mongoose from "mongoose";
 import { Ticket } from "../src/modules/tickets/ticket.model.js";
 import { TicketEvent } from "../src/modules/tickets/ticketEvent.model.js";
 import { SlaCycle } from "../src/modules/service-levels/slaCycle.model.js";
+import { SlaPolicy } from "../src/modules/service-levels/slaPolicy.model.js";
+import { BusinessCalendar } from "../src/modules/service-levels/businessCalendar.model.js";
+import "../src/modules/service-levels/slaBreach.model.js";
 export async function createIndexes() {
   // Only legacy non-approval tickets can be backfilled automatically.
   await Ticket.collection.updateMany({ approvalRequired: false, currentApprovalRound: { $exists: false } }, { $set: { currentApprovalRound: 0 } });
@@ -75,6 +78,60 @@ export async function createIndexes() {
       }
     });
   }
+  // Canonicalize live configuration for future snapshots. Historical ticket
+  // snapshots are deliberately never rewritten.
+  for await (const policy of SlaPolicy.collection.find({})) {
+    const targets = {};
+    let changed = false;
+    for (const [priority, target] of Object.entries(policy.targets || {})) {
+      targets[priority] = {
+        ...(target.responseSeconds != null || target.responseMinutes != null
+          ? {
+              responseSeconds:
+                target.responseSeconds ?? target.responseMinutes * 60,
+            }
+          : {}),
+        ...(target.resolutionSeconds != null || target.resolutionMinutes != null
+          ? {
+              resolutionSeconds:
+                target.resolutionSeconds ?? target.resolutionMinutes * 60,
+            }
+          : {}),
+      };
+      if (target.responseMinutes != null || target.resolutionMinutes != null) changed = true;
+    }
+    await SlaPolicy.collection.updateOne(
+      { _id: policy._id },
+      {
+        $set: {
+          ...(changed ? { targets } : {}),
+          revision: policy.revision || 1,
+        },
+      },
+    );
+  }
+  await BusinessCalendar.collection.updateMany(
+    { revision: { $exists: false } },
+    { $set: { revision: 1 } },
+  );
+  await SlaCycle.collection.updateMany(
+    { clockRevision: { $exists: false } },
+    {
+      $set: {
+        clockRevision: 0,
+        responseEvaluationComplete: false,
+        resolutionEvaluationComplete: false,
+      },
+    },
+  );
+  await SlaCycle.collection.updateMany(
+    { endedAt: { $exists: false }, isOpen: { $exists: false } },
+    { $set: { isOpen: true } },
+  );
+  await SlaCycle.collection.updateMany(
+    { endedAt: { $exists: true }, isOpen: { $exists: false } },
+    { $set: { isOpen: false } },
+  );
   // Additive only: never drop existing indexes in an operational database.
   for (const Model of Object.values(mongoose.models)) {
     await Model.createCollection();

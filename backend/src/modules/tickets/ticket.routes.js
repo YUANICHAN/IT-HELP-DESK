@@ -17,6 +17,7 @@ import {
 } from "./ticket.controller.js";
 import { upload, list as attachments } from "../attachments/attachment.routes.js";
 import { reroute, history as approvalHistory } from "../approvals/approvals.controller.js";
+import serviceLevelsRoutes from "../service-levels/serviceLevels.routes.js";
 
 function ticketSecurity(router) {
   router.use((_req, res, next) => {
@@ -32,6 +33,7 @@ ticketSecurity(router);
 
 router.post("/", csrfProtection, asyncHandler(create));
 router.get("/", asyncHandler(list));
+router.use("/:ticketId/service-level", serviceLevelsRoutes);
 router.get("/:ticketId", asyncHandler(detail));
 router.post("/:ticketId/approval-reroutes", csrfProtection, asyncHandler(reroute));
 router.get("/:ticketId/approvals", asyncHandler(approvalHistory));
