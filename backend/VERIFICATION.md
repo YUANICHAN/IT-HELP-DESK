@@ -1,5 +1,91 @@
 # Verification record
 
+## Step 11 - 2026-10-28
+
+Validated on Windows PowerShell with Node.js v24 and MongoDB 8.2 using an
+isolated single-node replica set `rs-step11` on `127.0.0.1:27018`. UUID-named
+test databases were created and dropped; the normal standalone instance on port
+27017 was not modified.
+
+```powershell
+$env:TEST_MONGODB_URI = 'mongodb://127.0.0.1:27018/?replicaSet=rs-step11'
+npm test
+```
+
+Latest full run: **94 passed, 0 failed, 0 skipped, 89.59 seconds.** This includes
+all authentication, access, ticket, approval, attachment, asset, SLA, outbox,
+cleanup, and notification regressions plus the Step 11 suite.
+
+After the final audit filter-combination and invalid-storage-configuration
+hardening, the focused Step 11 suite was rerun: **6 passed, 0 failed, 8.97
+seconds.**
+
+The Step 11 suite independently verifies role-specific totals, another
+technician's inaccessible assignment, overlapping-grant deduplication, immediate
+revocation, immutable original department ownership after transfer,
+administrator non-bypass, resolved/backlog separation, three of four eligible
+cycles producing exactly 75% attainment, cancelled/rejected exclusions,
+reopening events versus distinct tickets, business-second units, audit filter
+validation/redaction, missing/malformed/stale backup evidence, inaccessible
+storage, and administrator-only health.
+
+Expected injected persistence errors appear in the full output. Their existing
+tests assert transaction rollback; they are passing behavior. The synthetic
+backup manifest tests do not perform a real backup or restore, and Postman was
+not run. See [Summaries and operations](SUMMARIES_OPERATIONS.md).
+
+Additional checks on the same isolated replica set:
+
+- `node --check` succeeded for all 144 JavaScript files under `src`, `scripts`,
+  and `test`; `git -c core.safecrlf=false diff --check` had no errors.
+- `npm run db:indexes` completed on a disposable database. Inspection confirmed
+  the ticket, SLA-cycle, ticket-event, worklog, asset-event, and audit-explorer
+  reporting indexes by name.
+- `npm run worker` used a dedicated empty storage root, recorded successful
+  delivery/SLA/cleanup runs, and persisted `STOPPED` after SIGINT.
+
+## Step 10 - 2026-10-28
+
+Validated on Windows PowerShell with Node.js v24.19.0, npm 11.6.4, and
+MongoDB 8.2.3 using an isolated replica set named `step67` on
+`127.0.0.1:27019`. The normal MongoDB instance on port 27017 and its databases
+were not modified.
+
+```powershell
+$env:TEST_MONGODB_URI = 'mongodb://127.0.0.1:27019/it_help_desk_test?replicaSet=step67'
+npm test
+```
+
+Latest complete run: **88 passed, 0 failed, 0 skipped, 96.02 seconds.** This
+includes all prior authentication, scope, ticket, approval, attachment, asset,
+and SLA tests plus the 10-result Step 10 suite.
+
+Step 10 coverage includes stable enqueue deduplication and distinct domain
+events; two-worker contention; expired-lease crash recovery; rejection of an
+old lease token; transactional notification/outbox rollback; persisted 1/5/15/
+60-minute retries and five-attempt exhaustion; account-disable and grant-revoke
+suppression; notification ownership/current-access/CSRF checks; internal-title
+non-disclosure; bounded session/idempotency cleanup with ticket history
+preserved; and stale-heartbeat/failed-delivery health reporting.
+
+Also verified:
+
+- `node --check` succeeded for all 130 JavaScript files under `src`, `scripts`,
+  and `test`; `git diff --check` reported no whitespace errors.
+- `npm run db:indexes` completed on an isolated Step 10 database and created the
+  outbox, notification, heartbeat, maintenance, and explicit-expiry indexes.
+- `node src/worker.js` connected to the isolated replica set, ran the immediate
+  delivery/SLA/cleanup schedule, logged its worker identity, and handled SIGINT
+  with the heartbeat moving through graceful shutdown.
+- After the final lease-expiry and unassigned-support recipient adjustments,
+  the focused Step 10 and ticket suites were rerun: **20 passed, 0 failed**.
+- The standalone port-27017 check still fails closed for transactional writes,
+  as designed; all transaction success/rollback checks used port 27019.
+
+Expected injected audit, outbox, and finalization errors appear in test output.
+Their tests assert rollback and are passing behavior. See
+[Background delivery](BACKGROUND_DELIVERY.md).
+
 ## Step 9 - 2026-10-25
 
 Validated on Windows PowerShell with Node.js v24.19.0, npm 11.6.4, and

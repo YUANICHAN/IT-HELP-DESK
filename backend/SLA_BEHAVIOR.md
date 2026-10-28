@@ -105,10 +105,10 @@ The unique `{ organization, cycle, metric }` breach index and transactional
 writes prevent duplicate breach history and notifications across workers.
 
 Each breach transaction stores the breach, a safe ticket event, an audit event,
-and a PENDING outbox record. It never reports notification delivery. The outbox
-selects currently authorized triage recipients at delivery and includes an
-assigned technician only while that technician remains active and support
-scoped.
+and per-recipient PENDING outbox records. It never reports notification delivery.
+The background worker rechecks current triage/support authorization before
+delivery and includes an assigned technician only while that technician remains
+active and support scoped. See [Background delivery](BACKGROUND_DELIVERY.md).
 
 ## API
 
@@ -153,8 +153,8 @@ before rerunning if MongoDB reports an index conflict.
 
 - Full-day holidays are supported; partial-day holiday exceptions and overnight
   windows require a future calendar-format extension.
-- This stage writes pending notifications but does not implement external email,
-  push, or outbox delivery.
+- In-app outbox delivery is implemented by Step 10. Email and push delivery are
+  not implemented.
 - Frontend SLA pages and extended SLA reporting are outside Step 9.
 - Incomplete historical snapshots require an explicit reconciliation process;
   no automatic historical inference is performed.

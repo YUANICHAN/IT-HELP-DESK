@@ -1,5 +1,48 @@
 # Changed files
 
+## Step 11
+
+- `src/modules/dashboard/*`: role-specific dashboard composition using current
+  ticket/asset policies and live grants.
+- `src/modules/reporting/*`: validated periods/departments, authorized MongoDB
+  aggregation, SLA snapshot metrics, reopenings, effort, recurring asset issues,
+  and accountability summaries.
+- `src/modules/audit/*`: administrator-only allowlisted security/access explorer
+  with bounded filters, stable pagination, reference scoping, and redaction.
+- `src/modules/health/operationsEvidence.service.js`, `health.service.js`, the
+  heartbeat model/service, and `workers/scheduler.js`: storage probe, validated
+  backup manifest, per-task freshness/outcome evidence, and component health.
+- Ticket, cycle, event, worklog, asset-event, and authentication-audit models add
+  reporting/explorer indexes; `ticket.policy.js` adds reusable capability and
+  internal filters.
+- `src/app.js`, `src/config/env.js`, and `.env.example`: routes and trusted
+  operations-evidence configuration.
+- `test/summaries.integration.test.js`: deterministic multi-role, overlapping-
+  grant, revocation, 75%-attainment, audit-redaction, storage, and backup tests.
+- `SUMMARIES_OPERATIONS.md`, `VERIFICATION.md`, and the root README document
+  verified behavior and commands.
+
+## Step 10
+
+- `src/modules/outbox/*`: per-recipient/channel transactional outbox records,
+  stable deduplication, safe metadata, retry and lease state.
+- `src/modules/notifications/*`: notification persistence, current-access
+  authorization, safe presentation, list/read API, and producer routing.
+- `src/workers/outbox.processor.js`, `src/workers/scheduler.js`, and
+  `src/worker.js`: atomic claims, lease recovery, bounded delivery, unified SLA/
+  cleanup scheduling, heartbeat, and graceful shutdown.
+- `src/modules/maintenance/*`, `src/modules/health/*`: bounded cleanup,
+  restart-safe job leases, persisted heartbeat, and administrator health.
+- `src/shared/database/idempotency*`, attachment storage/cleanup, `src/app.js`,
+  `src/config/env.js`, `.env.example`, and `scripts/create-indexes.js`: explicit
+  expiry, bounded file cleanup, routes/configuration, indexes, and migration.
+- Ticket, approval, asset, and SLA producers now enqueue safe per-recipient rows
+  within their existing business transactions.
+- `test/background.integration.test.js` plus updated ticket/approval expectations
+  cover delivery and preserve the prior suites.
+- `BACKGROUND_DELIVERY.md`, `SLA_BEHAVIOR.md`, `VERIFICATION.md`, and the root
+  README document the verified operating model.
+
 ## Step 8
 
 The Step 8 working-tree changes are listed below. No frontend files or runtime

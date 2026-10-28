@@ -320,7 +320,8 @@ export async function downloadAttachment(authentication, id) {
   };
 }
 export async function cleanupAttachments({
-  olderThan = new Date(Date.now() - 3600000)
+  olderThan = new Date(Date.now() - 3600000),
+  limit = 100
 } = {}) {
   let reservations = 0,
     files = 0;
@@ -329,12 +330,12 @@ export async function cleanupAttachments({
     updatedAt: {
       $lt: olderThan
     }
-  }).select("+storageName");
+  }).select("+storageName").limit(limit);
   for (const row of pending) if (await rejectReservation(row._id, "ERROR", "DELETED")) {
     await localStorage.remove(row.storageName);
     reservations++;
   }
-  for (const name of await localStorage.oldFiles(olderThan)) {
+  for (const name of await localStorage.oldFiles(olderThan, limit)) {
     if (!(await Attachment.exists({
       storageName: name,
       state: {

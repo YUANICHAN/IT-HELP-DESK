@@ -142,6 +142,10 @@ authenticationAuditSchema.index(
   { user: 1, occurredAt: -1 },
   { name: "authentication_audit_user_timeline" },
 );
+authenticationAuditSchema.index(
+  { organization: 1, eventType: 1, occurredAt: -1, _id: -1 },
+  { name: "administrative_audit_explorer" },
+);
 
 export const AuthenticationAudit =
   mongoose.models.AuthenticationAudit ||

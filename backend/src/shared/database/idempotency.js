@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { AppError } from "../errors/app-error.js";
 import { IdempotencyKey } from "./idempotencyKey.model.js";
+import { env } from "../../config/env.js";
 
 const KEY_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/u;
 
@@ -64,6 +65,9 @@ export async function saveIdempotencyRecord(
         resourceType,
         resourceId,
         responseStatus,
+        expiresAt: new Date(
+          Date.now() + env.worker.idempotencyRetentionHours * 3_600_000,
+        ),
       },
     ],
     { session: mongoSession },

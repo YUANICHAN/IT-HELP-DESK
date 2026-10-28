@@ -68,6 +68,10 @@ slaCycleSchema.index(
   { name: "sla_cycle_open_lookup" },
 );
 slaCycleSchema.index(
+  { organization: 1, endReason: 1, endedAt: 1, cycleNumber: 1 },
+  { name: "sla_cycle_period_reporting" },
+);
+slaCycleSchema.index(
   {
     responseEvaluationComplete: 1,
     resolutionEvaluationComplete: 1,

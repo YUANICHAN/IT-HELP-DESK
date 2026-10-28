@@ -39,6 +39,16 @@ export async function enqueueTicketNotifications({
       ? "INTERNAL"
       : "PUBLIC",
   );
+  const unassignedQueueSupport = !ticket.assignee &&
+    ["NEW", "OPEN"].includes(ticket.status) &&
+    ["NOT_REQUIRED", "APPROVED"].includes(ticket.approvalStatus)
+    ? capability(
+        "support",
+        ticket.requesterDepartment,
+        "TICKET_INTERNAL",
+        "INTERNAL",
+      )
+    : null;
 
   if (type === "CREATED") {
     directRecipients.push(requester);
@@ -71,11 +81,13 @@ export async function enqueueTicketNotifications({
         ticket.requesterDepartment,
         "TICKET_PUBLIC",
       ),
+      ...(unassignedQueueSupport ? [unassignedQueueSupport] : []),
     );
     excludeUserIds.push(actorId);
   } else if (type === "INTERNAL_NOTE_ADDED") {
     directRecipients.push(assignee);
     capabilityRecipients.push(triage);
+    if (unassignedQueueSupport) capabilityRecipients.push(unassignedQueueSupport);
     excludeUserIds.push(actorId);
   } else if (type.startsWith("SLA_")) {
     directRecipients.push(assignee);

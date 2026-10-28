@@ -40,7 +40,7 @@ export const localStorage = {
       if (error.code !== "ENOENT") throw error;
     });
   },
-  async oldFiles(cutoff) {
+  async oldFiles(cutoff, limit = 100) {
     const config = storageConfig(),
       result = new Set();
     for (const directory of [config.temporary, config.attachments]) {
@@ -50,7 +50,10 @@ export const localStorage = {
         if (error.code === "ENOENT") return [];
         throw error;
       });
-      for (const entry of entries) if (entry.isFile() && /^[a-f0-9-]{36}$/u.test(entry.name) && (await stat(generatedPath(directory, entry.name))).mtime < cutoff) result.add(entry.name);
+      for (const entry of entries) {
+        if (result.size >= limit) break;
+        if (entry.isFile() && /^[a-f0-9-]{36}$/u.test(entry.name) && (await stat(generatedPath(directory, entry.name))).mtime < cutoff) result.add(entry.name);
+      }
     }
     return [...result];
   }

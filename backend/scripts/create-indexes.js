@@ -7,7 +7,81 @@ import { SlaCycle } from "../src/modules/service-levels/slaCycle.model.js";
 import { SlaPolicy } from "../src/modules/service-levels/slaPolicy.model.js";
 import { BusinessCalendar } from "../src/modules/service-levels/businessCalendar.model.js";
 import "../src/modules/service-levels/slaBreach.model.js";
+import { env } from "../src/config/env.js";
+import { enqueueOutboxEvent } from "../src/modules/outbox/outbox.service.js";
+import { OutboxEvent } from "../src/modules/outbox/outboxEvent.model.js";
+import "../src/modules/notifications/notification.model.js";
+import "../src/modules/health/workerHeartbeat.model.js";
+import "../src/modules/maintenance/maintenanceJob.model.js";
+import { IdempotencyKey } from "../src/shared/database/idempotencyKey.model.js";
+
+async function migrateLegacyOutbox() {
+  const legacyRows = OutboxEvent.collection.find({
+    deduplicationKey: { $exists: false },
+  });
+  for await (const row of legacyRows) {
+    if (["PENDING", "PROCESSING", "FAILED"].includes(row.status)) {
+      const ticket = row.aggregateType === "TICKET";
+      const approval = ticket && row.eventType.includes("APPROVAL");
+      const defaultAccessKind = ticket
+        ? approval ? "TICKET_APPROVER" : row.visibility === "INTERNAL"
+          ? "TICKET_INTERNAL" : "TICKET_PUBLIC"
+        : "ASSET_MANAGER";
+      await enqueueOutboxEvent({
+        organization: row.organization,
+        sourceEvent: row._id,
+        eventType: row.eventType,
+        aggregateType: row.aggregateType,
+        aggregateId: row.aggregateId,
+        directRecipients: (row.recipients?.userIds || []).map((userId) => ({
+          userId,
+          accessKind: defaultAccessKind,
+          visibility: row.visibility || "PUBLIC",
+          channel: "IN_APP",
+        })),
+        capabilityRecipients: row.recipients?.capability
+          ? [{
+              capability: row.recipients.capability,
+              department: row.recipients.department,
+              accessKind: row.visibility === "INTERNAL"
+                ? "TICKET_INTERNAL"
+                : row.aggregateType === "ASSET"
+                  ? "ASSET_MANAGER"
+                  : "TICKET_PUBLIC",
+              visibility: row.visibility || "PUBLIC",
+              channel: "IN_APP",
+            }]
+          : [],
+        metadata: row.payload || {},
+        occurredAt: row.availableAt || row.createdAt || new Date(),
+      });
+    }
+    await OutboxEvent.collection.updateOne(
+      { _id: row._id, deduplicationKey: { $exists: false } },
+      {
+        $set: {
+          status: "SUPPRESSED",
+          suppressedAt: new Date(),
+          lastErrorCode: "LEGACY_SELECTOR_MIGRATED",
+        },
+      },
+    );
+  }
+}
 export async function createIndexes() {
+  const idempotencyExpiry = new Date(
+    Date.now() + env.worker.idempotencyRetentionHours * 3_600_000,
+  );
+  await IdempotencyKey.collection.updateMany(
+    { expiresAt: { $exists: false } },
+    { $set: { expiresAt: idempotencyExpiry } },
+  );
+  const idempotencyIndexes = await IdempotencyKey.collection.indexes()
+    .catch(() => []);
+  if (idempotencyIndexes.some((index) => index.name === "idempotency_key_retention_ttl")) {
+    await IdempotencyKey.collection.dropIndex("idempotency_key_retention_ttl");
+  }
+  await migrateLegacyOutbox();
   // Only legacy non-approval tickets can be backfilled automatically.
   await Ticket.collection.updateMany({ approvalRequired: false, currentApprovalRound: { $exists: false } }, { $set: { currentApprovalRound: 0 } });
   // Repeatable backfills for Step 5 records; preserve original snapshots and clock starts.

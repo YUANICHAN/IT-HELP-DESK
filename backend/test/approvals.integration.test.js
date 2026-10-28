@@ -120,9 +120,9 @@ test("Step 8 approval rounds on an isolated replica set", async context => {
       const notifications = await OutboxEvent.find({
         aggregateId: ticket.id
       });
-      assert.equal(notifications.length, 2);
-      assert.ok(notifications.every(row => row.status === "PENDING" && !row.processedAt && row.requiresAuthorization));
-      assert.ok(notifications.some(row => row.recipients.userIds.some(id => id.equals(f.users.supervisor._id))));
+      assert.equal(notifications.length, 3);
+      assert.ok(notifications.every(row => row.status === "PENDING" && !row.deliveredAt && row.recipient));
+      assert.ok(notifications.some(row => row.recipient.equals(f.users.supervisor._id)));
       const replay = await f.post("/tickets", "employee", input, key);
       assert.equal(status(replay, 201).ticket.id, ticket.id);
       assert.equal(replay.headers.get("idempotency-replayed"), "true");

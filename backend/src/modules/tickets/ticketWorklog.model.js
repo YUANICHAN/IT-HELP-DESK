@@ -55,4 +55,11 @@ schema.index({
   createdAt: 1,
   _id: 1
 });
+schema.index({
+  organization: 1,
+  start: 1,
+  ticket: 1
+}, {
+  name: "ticket_worklog_period_reporting"
+});
 export const TicketWorklog = mongoose.models.TicketWorklog || mongoose.model("TicketWorklog", schema);

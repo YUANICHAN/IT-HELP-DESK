@@ -8,6 +8,11 @@ import ticketRoutes, { queueRouter } from "./modules/tickets/ticket.routes.js";
 import assetRoutes from "./modules/assets/assets.routes.js";
 import attachmentRoutes from "./modules/attachments/attachment.routes.js";
 import approvalRoutes from "./modules/approvals/approvals.routes.js";
+import notificationRoutes from "./modules/notifications/notification.routes.js";
+import healthRoutes from "./modules/health/health.routes.js";
+import dashboardRoutes from "./modules/dashboard/dashboard.routes.js";
+import reportingRoutes from "./modules/reporting/reporting.routes.js";
+import auditRoutes from "./modules/audit/audit.routes.js";
 import { AppError } from "./shared/errors/app-error.js";
 
 const app = express();
@@ -49,6 +54,11 @@ app.use("/api/v1/queue", queueRouter);
 app.use("/api/v1/assets", assetRoutes);
 app.use("/api/v1/attachments", attachmentRoutes);
 app.use("/api/v1/approvals", approvalRoutes);
+app.use("/api/v1/notifications", notificationRoutes);
+app.use("/api/v1/admin/health", healthRoutes);
+app.use("/api/v1/dashboard", dashboardRoutes);
+app.use("/api/v1/reports", reportingRoutes);
+app.use("/api/v1/admin/audit", auditRoutes);
 
 app.use((req, res) => {
   res.status(404).json({

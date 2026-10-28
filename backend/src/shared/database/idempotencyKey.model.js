@@ -12,6 +12,7 @@ const idempotencyKeySchema = new Schema(
     resourceType: { type: String, required: true, enum: ["TICKET", "COMMENT", "WORKLOG", "ATTACHMENT", "ASSET", "APPROVAL"], immutable: true },
     resourceId: { type: Schema.Types.ObjectId, required: true, immutable: true },
     responseStatus: { type: Number, required: true, min: 200, max: 299, immutable: true },
+    expiresAt: { type: Date, required: true, immutable: true },
   },
   { strict: "throw", timestamps: true, versionKey: false },
 );
@@ -21,8 +22,8 @@ idempotencyKeySchema.index(
   { unique: true, name: "idempotency_key_scope_unique" },
 );
 idempotencyKeySchema.index(
-  { createdAt: 1 },
-  { expireAfterSeconds: 86_400, name: "idempotency_key_retention_ttl" },
+  { expiresAt: 1 },
+  { expireAfterSeconds: 0, name: "idempotency_key_expiration_ttl" },
 );
 
 export const IdempotencyKey =

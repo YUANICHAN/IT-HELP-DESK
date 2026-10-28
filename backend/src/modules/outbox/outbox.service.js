@@ -19,9 +19,12 @@ function safeMetadata(input = {}) {
   const result = {};
   for (const [key, raw] of Object.entries(input)) {
     if (!SAFE_METADATA_FIELDS.has(key) || raw == null) continue;
-    const value = idOf(raw) || raw;
+    if (Number.isSafeInteger(raw)) {
+      result[key] = raw;
+      continue;
+    }
+    const value = idOf(raw);
     if (typeof value === "string") result[key] = value.slice(0, 120);
-    else if (Number.isSafeInteger(value)) result[key] = value;
   }
   return result;
 }

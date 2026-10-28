@@ -32,6 +32,10 @@ ticketEventSchema.index(
   { organization: 1, ticket: 1, occurredAt: 1, _id: 1 },
   { name: "ticket_event_timeline" },
 );
+ticketEventSchema.index(
+  { organization: 1, type: 1, occurredAt: -1, ticket: 1 },
+  { name: "ticket_event_operational_reporting" },
+);
 
 export const TicketEvent =
   mongoose.models.TicketEvent || mongoose.model("TicketEvent", ticketEventSchema);

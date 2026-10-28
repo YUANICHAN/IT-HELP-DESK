@@ -15,6 +15,13 @@ const workerHeartbeatSchema = new Schema(
     release: { type: String, required: true, maxlength: 120, immutable: true },
     lastDeliveryErrorCode: { type: String, maxlength: 80, default: undefined },
     lastCleanupErrorCode: { type: String, maxlength: 80, default: undefined },
+    lastSlaErrorCode: { type: String, maxlength: 80, default: undefined },
+    lastDeliveryRunAt: { type: Date, default: undefined },
+    lastDeliveryStatus: { type: String, enum: ["SUCCESS", "FAILED"], default: undefined },
+    lastSlaRunAt: { type: Date, default: undefined },
+    lastSlaStatus: { type: String, enum: ["SUCCESS", "FAILED"], default: undefined },
+    lastCleanupRunAt: { type: Date, default: undefined },
+    lastCleanupStatus: { type: String, enum: ["SUCCESS", "FAILED"], default: undefined },
   },
   { strict: "throw", timestamps: true, versionKey: false },
 );

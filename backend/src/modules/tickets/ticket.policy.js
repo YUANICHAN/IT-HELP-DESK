@@ -23,6 +23,44 @@ function departmentCondition(scope) {
   return { requesterDepartment: { $in: scope.departmentIds } };
 }
 
+export function buildCapabilityTicketFilter(authentication, capability) {
+  const condition = departmentCondition(capabilityScope(authentication, capability));
+  if (!condition) {
+    return {
+      organization: authentication.user.organizationId,
+      _id: { $exists: false },
+    };
+  }
+  return {
+    organization: authentication.user.organizationId,
+    ...condition,
+  };
+}
+
+export function buildInternalTicketAccessFilter(authentication) {
+  const clauses = [];
+  const triage = departmentCondition(capabilityScope(authentication, "ticket_triage"));
+  if (triage) clauses.push(triage);
+  const support = departmentCondition(capabilityScope(authentication, "support"));
+  if (support && authentication.user.role === "TECHNICIAN") {
+    clauses.push({
+      ...support,
+      $or: [
+        { assignee: authentication.user.id },
+        {
+          assignee: null,
+          status: { $in: ["NEW", "OPEN"] },
+          approvalStatus: { $in: ["NOT_REQUIRED", "APPROVED"] },
+        },
+      ],
+    });
+  }
+  return {
+    organization: authentication.user.organizationId,
+    ...(clauses.length ? { $or: clauses } : { _id: { $exists: false } }),
+  };
+}
+
 export function buildTicketAccessFilter(authentication) {
   const organization = authentication.user.organizationId;
   const user = authentication.user.id;

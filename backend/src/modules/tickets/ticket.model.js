@@ -141,6 +141,10 @@ ticketSchema.index(
   { organization: 1, assignee: 1, status: 1, submittedAt: -1 },
   { name: "ticket_assignee_collection" },
 );
+ticketSchema.index(
+  { organization: 1, status: 1, requesterDepartment: 1, priority: 1, submittedAt: -1 },
+  { name: "ticket_operational_reporting" },
+);
 
 export const Ticket =
   mongoose.models.Ticket || mongoose.model("Ticket", ticketSchema);

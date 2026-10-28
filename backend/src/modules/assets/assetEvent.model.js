@@ -44,4 +44,13 @@ schema.index({
   occurredAt: -1,
   _id: -1
 });
+schema.index({
+  organization: 1,
+  type: 1,
+  "data.action": 1,
+  occurredAt: -1,
+  asset: 1
+}, {
+  name: "asset_event_operational_reporting"
+});
 export const AssetEvent = mongoose.models.AssetEvent || mongoose.model("AssetEvent", schema);

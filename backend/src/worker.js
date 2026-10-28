@@ -8,15 +8,15 @@ async function stop(signal) {
   if (stopping) return;
   stopping = true;
   console.log(`${signal}: stopping worker.`);
-  scheduler?.stop();
+  await scheduler?.stop();
   await disconnectDatabase();
   process.exit(0);
 }
 
 try {
   await connectDatabase();
-  scheduler = startScheduler();
-  console.log("SLA worker running.");
+  scheduler = await startScheduler();
+  console.log(`Background worker running (${scheduler.workerId}).`);
   process.on("SIGINT", () => void stop("SIGINT"));
   process.on("SIGTERM", () => void stop("SIGTERM"));
 } catch (error) {

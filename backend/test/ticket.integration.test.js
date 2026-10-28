@@ -488,7 +488,7 @@ test("first ticket workflow HTTP integration", async (context) => {
       assert.equal(Object.hasOwn(stored, "dueAt"), false);
       assert.equal(await SlaCycle.countDocuments({ ticket: stored._id }), 1);
       assert.equal(await TicketEvent.countDocuments({ ticket: stored._id, type: "CREATED" }), 1);
-      assert.equal(await OutboxEvent.countDocuments({ aggregateId: stored._id, status: "PENDING" }), 1);
+      assert.equal(await OutboxEvent.countDocuments({ aggregateId: stored._id, status: "PENDING" }), 2);
       assert.equal(await AuthenticationAudit.countDocuments({ ticket: stored._id, eventType: "TICKET_CREATED" }), 1);
     });
 
