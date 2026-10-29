@@ -1,7 +1,10 @@
 import { Blocks, CheckCircle2, Route, ShieldCheck, SwatchBook } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import Card from '../shared/components/Card.jsx'
+import Button from '../shared/components/Button.jsx'
 import { env } from '../shared/config/env.js'
+import { useAuth } from '../features/auth/useAuth.js'
+import { useState } from 'react'
 
 const foundationItems = [
   {
@@ -16,12 +19,20 @@ const foundationItems = [
   },
   {
     icon: ShieldCheck,
-    title: 'Security work reserved',
-    description: 'Session bootstrap and permission guards remain intentionally deferred.',
+    title: 'Session protected',
+    description: 'Your identity and CSRF state are held only for this browser session.',
   },
 ]
 
 export default function FoundationPage() {
+  const auth = useAuth()
+  const [signingOut, setSigningOut] = useState(false)
+
+  async function handleLogout() {
+    setSigningOut(true)
+    await auth.logout()
+  }
+
   return (
     <main className="grid min-h-screen place-items-center px-6 py-8 max-md:items-start max-md:p-4">
       <Card aria-labelledby="foundation-title" className="w-full max-w-[55rem]">
@@ -32,13 +43,14 @@ export default function FoundationPage() {
           <CheckCircle2 size={24} strokeWidth={2} />
         </div>
         <p className="mb-2 text-meta font-bold tracking-[0.08em] text-primary-hover uppercase">
-          Project foundation
+          Authenticated foundation
         </p>
         <h1 className="text-page" id="foundation-title">
           {env.appName}
         </h1>
         <p className="mt-3 max-w-2xl text-text-secondary">
-          The Deskflow Blue design system and reusable interface components are ready for later feature work.
+          Welcome, {auth.user.displayName}. Authentication and account security are active;
+          the connected dashboard arrives in Step 7.
         </p>
 
         <div className="mt-8 grid grid-cols-3 gap-4 max-md:grid-cols-1">
@@ -61,9 +73,22 @@ export default function FoundationPage() {
           ))}
         </div>
 
-        <p className="mt-6 border-l-[3px] border-primary py-2 pl-3 text-[0.9375rem] text-text-secondary">
-          This is a non-sensitive public placeholder. It does not perform authentication or grant access to help-desk data.
-        </p>
+        <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-border pt-5">
+          <Link
+            className="inline-flex min-h-control items-center justify-center rounded-control border border-primary bg-primary px-4 py-2 font-semibold text-text-inverse no-underline hover:bg-primary-hover hover:text-text-inverse"
+            to="/security"
+          >
+            Account security
+          </Link>
+          <Button
+            onClick={handleLogout}
+            pending={signingOut}
+            pendingLabel="Signing out…"
+            variant="ghost"
+          >
+            Sign out
+          </Button>
+        </div>
 
         {import.meta.env.DEV ? (
           <Link

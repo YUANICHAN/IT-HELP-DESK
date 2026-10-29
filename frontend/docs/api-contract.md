@@ -330,3 +330,51 @@ read, attachment, and claim boundaries rather than speculative modules for
 missing lookup contracts. The lookup, cross-origin CORS, and production service
 dependencies recorded above remain unchanged.
 
+## Step 5 frontend authentication conventions
+
+`AuthProvider` owns the browser authentication lifecycle. The
+`authKeys.me()` query remains the source of server identity data; the provider
+derives `booting`, `authenticated`, `signedOut`, and `failure` states without
+keeping a second user record. Initial `GET /auth/me` uses optional-auth client
+behavior so an expected bootstrap `401` becomes signed-out state rather than a
+protected-session-expiry event. Network and server failures remain a distinct,
+retryable full-page error and are never interpreted as logout.
+
+- The provider copies only the response `csrfToken` into the Step 4 in-memory
+  integration. The token and session identity are never written to Web Storage,
+  IndexedDB, URLs, query keys, or logs. The raw session token remains in the
+  backend's HttpOnly cookie.
+- Login sends exactly `{ email, password }` without CSRF. A successful response
+  establishes the returned identity and CSRF token. `INVALID_CREDENTIALS`
+  remains generic and form-local; `LOGIN_RATE_LIMITED` disables another attempt
+  for the parsed `Retry-After` interval without disclosing account existence.
+- Protected `401` notifications, confirmed logout, local logout after an
+  unconfirmed server failure, current-session revocation, and account-change
+  conflicts all synchronously invalidate the authenticated view, cancel
+  protected requests, remove private queries, clear pending mutations, and
+  clear in-memory CSRF. A transition generation prevents an older session from
+  restoring state after a newer transition.
+- Password change sends exactly `{ currentPassword, newPassword }`. On success,
+  the rotated identity and CSRF response replace the old session only after
+  previous private state is cleared. The forced-change route then returns to a
+  validated intended application path. `ACCOUNT_CHANGED` ends local auth and
+  requires a fresh sign-in.
+- `/sign-in`, `/change-password`, and `/security` are the active account routes.
+  Return destinations must be same-origin application paths, cannot be
+  protocol-relative or contain backslashes, cannot target `/api`, and cannot
+  loop through either authentication route (including trailing slashes).
+- `RequireAuth` protects private routes. `RequirePasswordChangeComplete`
+  redirects identities with `mustChangePassword` to `/change-password`; during
+  that state only password change and logout are exposed. These are navigation
+  aids only. Backend authorization and capability grants remain authoritative,
+  and administrator role never implies an operational capability.
+- `/security` renders only backend-returned safe session metadata. Revoking a
+  non-current session refreshes the list. Revoking the current session clears
+  local state and returns to sign-in. Password reset, activation, invitations,
+  and account recovery remain unsupported because no verified routes exist.
+
+The development component gallery remains outside the authentication provider
+only in Vite development mode. It contains synthetic design-system fixtures and
+is omitted from production routing and bundles; it is not an application-data
+bypass.
+

@@ -41,7 +41,9 @@ Invoke-WebRequest http://127.0.0.1:5173/api/v1/health -UseBasicParsing
 
 Production should keep the built frontend and `/api/v1` under one browser
 origin. The shared client sends credentialed requests and keeps CSRF and
-idempotency state in memory; authentication lifecycle wiring remains Step 5.
+idempotency state in memory. Session bootstrap, sign-in, password rotation,
+logout, expiry handling, and private-cache cleanup are wired through the
+authentication provider without persisting session or CSRF values.
 
 ## Commands
 
@@ -66,12 +68,23 @@ controls, tables, states, dialogs, conflict feedback, and toasts. All gallery
 records are labelled synthetic fixtures. The route is development-only and is
 not registered in a production build.
 
+## Authentication routes
+
+- `/sign-in` signs in with the backend's opaque HttpOnly session cookie.
+- `/change-password` is the required route for forced password rotation.
+- `/security` provides voluntary password change and active-session revocation.
+
+Start the backend before opening protected routes. A backend outage produces a
+recoverable session-check error; it is intentionally not presented as logout.
+Authorized development accounts must come from backend setup—the frontend does
+not contain default credentials or seed accounts.
+
 ## Current scope
 
-Steps 2 through 4 supply the application bootstrap, shared query client, router
+Steps 2 through 5 supply the application bootstrap, shared query client, router
 metadata, root error boundary, public environment validation, Deskflow Blue
 tokens, reusable UI/feedback components, contract-aware HTTP/data primitives,
-representative feature API boundaries, and the test harness. The root page
-remains an explicitly public, non-sensitive foundation placeholder. Full
-authentication/permission guards, the responsive application shell, and
-connected business pages remain unregistered until their roadmap steps.
+representative feature API boundaries, authentication lifecycle, route guards,
+password rotation, and session management. The authenticated root remains a
+temporary foundation page. The responsive application shell and connected
+business pages remain in their later roadmap steps.

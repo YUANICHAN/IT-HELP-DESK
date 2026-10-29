@@ -5,7 +5,7 @@ import { AppRouter } from './router.jsx'
 export default function App() {
   return (
     <ErrorBoundary>
-      <AppProviders>
+      <AppProviders withAuth={false}>
         <AppRouter />
       </AppProviders>
     </ErrorBoundary>

@@ -9,13 +9,37 @@ const planned = (id, path, title, step) =>
   })
 
 export const routeMeta = Object.freeze({
+  signIn: Object.freeze({
+    id: 'sign-in',
+    path: '/sign-in',
+    title: 'Sign in',
+    registered: true,
+    kind: 'public-authentication',
+    authorization: 'public',
+  }),
+  changePassword: Object.freeze({
+    id: 'change-password',
+    path: '/change-password',
+    title: 'Change password',
+    registered: true,
+    kind: 'account-security',
+    authorization: 'authenticated-forced-change-allowed',
+  }),
+  security: Object.freeze({
+    id: 'security',
+    path: '/security',
+    title: 'Password and sessions',
+    registered: true,
+    kind: 'account-security',
+    authorization: 'authenticated-password-change-complete',
+  }),
   foundation: Object.freeze({
     id: 'foundation',
     path: '/',
     title: 'Project foundation',
     registered: true,
-    kind: 'public-foundation-placeholder',
-    authorization: 'not-implemented',
+    kind: 'authenticated-foundation-placeholder',
+    authorization: 'authenticated-password-change-complete',
   }),
   componentPreview: Object.freeze({
     id: 'component-preview',
@@ -38,9 +62,6 @@ export const routeMeta = Object.freeze({
 // These entries reserve stable browser locations only. They are deliberately
 // unregistered until their owning feature and authorization step is complete.
 export const plannedRouteMeta = Object.freeze([
-  planned('sign-in', '/sign-in', 'Sign in', 5),
-  planned('change-password', '/change-password', 'Change password', 5),
-  planned('security', '/security', 'Password and sessions', 5),
   planned('dashboard', '/', 'Dashboard', 7),
   planned('tickets', '/tickets', 'My tickets', 8),
   planned('new-ticket', '/tickets/new', 'New ticket', 9),

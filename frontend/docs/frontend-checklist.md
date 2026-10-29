@@ -300,7 +300,7 @@ execution-environment restriction rather than an assertion or compile failure.
 - [ ] Cross-origin deployments still require the backend CORS allowlist to add
   `PATCH` and `Idempotency-Key`; the documented same-origin `/api` topology is
   the supported path today.
-- [ ] Step 5 must connect auth bootstrap/login/logout/session replacement,
+- [x] Step 5 connected auth bootstrap/login/logout/session replacement,
   redirects, and private UI cleanup to the integration points added here.
 - [ ] Missing authorized service/location/department/user choice endpoints still
   block the production forms listed in the capability register.
@@ -311,6 +311,88 @@ boundaries are ready for **Step 5 — Authentication**. Live backend/proxy
 verification remains a release-environment check, not a blocker to the mocked
 contract implementation.
 
+## Step 5 — Authentication and account security
+
+### Authentication ownership and routes
+
+- [x] Added `AuthProvider` with explicit booting, authenticated, signed-out, and
+  recoverable authentication-service failure states.
+- [x] Kept `authKeys.me()` as the identity source and synchronized only the
+  current CSRF token with the in-memory Step 4 integration.
+- [x] Added `/sign-in`, `/change-password`, and `/security` to central route
+  metadata and protected private routes without exposing protected content
+  during bootstrap.
+- [x] Added same-origin return-path validation that rejects external,
+  protocol-relative, backslash, API, and authentication-loop destinations.
+- [x] Added `RequireAuth` and `RequirePasswordChangeComplete`; role and
+  capability authorization remain separate and backend-authoritative.
+
+### Sign-in, rotation, logout, and sessions
+
+- [x] Added the accessible sign-in form with exact request fields, generic
+  invalid-credential feedback, duplicate-safe pending behavior, password
+  visibility, and `Retry-After` throttling feedback.
+- [x] Added forced and voluntary password-change forms using the verified
+  12–128 Unicode-character and 1024-byte policy, confirmation validation,
+  server field errors, and `ACCOUNT_CHANGED` handling.
+- [x] Replaced identity and CSRF after password/session rotation only after
+  previous private requests and cache state are cleared.
+- [x] Connected protected-session expiry and logout to protected-request
+  cancellation, private query/mutation cleanup, CSRF clearing, and transition
+  isolation. Failed logout clears local state while explicitly stating that
+  server revocation could not be confirmed.
+- [x] Added safe active-session presentation and confirmed revocation for other
+  and current sessions using only backend-returned metadata.
+- [x] Kept password reset, invitations, activation, and account recovery visibly
+  unsupported; no endpoint or synthetic workflow was invented.
+
+### Focused verification
+
+- [x] Bootstrap success, unauthenticated response, temporary failure/retry, and
+  protected-content suppression.
+- [x] Sign-in success, generic invalid credentials, throttling, exact fields,
+  accessible labels, and validation associations.
+- [x] Safe returns, protected routing, forced password change, CSRF replacement,
+  and post-rotation navigation.
+- [x] Logout, protected expiry, private-cache cleanup, identity replacement, and
+  delayed-response isolation.
+- [x] Other-session and current-session revocation with confirmation and
+  lifecycle-specific outcomes.
+
+### Checks performed on 2026-10-29
+
+- [x] `npm run lint`: passed with no ESLint errors.
+- [x] `npm test -- --run`: 20 files and 72 tests passed, including 29 focused
+  auth/route tests.
+- [x] `npm run build`: passed; Vite 8.3.5 transformed 2,153 modules and emitted
+  the production bundle.
+- [x] `npm run test:e2e`: six Chromium tests passed, including authenticated
+  bootstrap, signed-out redirect, responsive gallery, and dialog keyboard use.
+- [x] `git diff --check`: passed; Git reported only expected Windows
+  LF-to-CRLF working-copy notices.
+- [x] Unit and route integration checks use synthetic MSW fixtures. They verify
+  the browser contract but do not claim a live database-backed authentication
+  session.
+- [ ] Live authentication verification requires an authorized test account and
+  a running backend with transaction-capable MongoDB; neither is currently
+  available in the checked-in frontend environment.
+- [ ] Live availability: `GET http://127.0.0.1:5000/api/v1/health` was attempted
+  and the backend was not listening. No live login/session claim is made.
+
+### Remaining dependencies
+
+- [ ] Repeat login, cookie rotation, CSRF, logout, and session-revocation smoke
+  tests against the deployed same-origin backend with authorized test accounts.
+- [ ] Password reset, activation, invitations, and other account-lifecycle flows
+  remain blocked on missing backend contracts.
+- [ ] Step 6 must replace the authenticated foundation page with the responsive
+  application shell and permission-aware navigation.
+
+Step 5 completion decision: **complete**. The authentication lifecycle and
+account-security screens are ready for **Step 6 — Responsive Application Shell
+and Navigation**. Live same-origin account testing remains a deployment check,
+not a substitute for the passing mocked contract coverage.
+
 ## Sequenced readiness for later steps
 
 | Roadmap area | Readiness | Prerequisite before production completion |
@@ -318,7 +400,7 @@ contract implementation.
 | Step 2 structure/checks | Ready | None beyond package compatibility checks |
 | Step 3 design system | Complete | None; reuse the implemented tokens and shared components |
 | Step 4 HTTP/server state | Complete | Use the implemented same-origin client and explicit pagination variants |
-| Step 5 auth/security | Ready | Deployment cookie/origin smoke test remains for release |
+| Step 5 auth/security | Complete | Deployment cookie/origin smoke test remains for release |
 | Step 6 shell/navigation | Ready | Navigation must be conservative and permission-aware |
 | Step 7 dashboard/notifications | Ready | No realtime claims; render only returned sections |
 | Step 8 ticket read | Ready | None |
@@ -335,13 +417,13 @@ contract implementation.
 
 ### Authentication and data isolation
 
-- [ ] Boot skeleton prevents protected-content flash.
-- [ ] Login obtains HttpOnly cookie implicitly and keeps CSRF only in memory.
-- [ ] Forced-change account reaches only change-password/logout.
-- [ ] Password change replaces session/CSRF and clears all prior user caches.
-- [ ] Current-session revoke signs out; other-session revoke updates list.
-- [ ] Expiry, account disable, session-version change, and logout clear private state.
-- [ ] Switching test identities cannot reveal prior internal comments, worklogs, assets, reports, or notifications.
+- [x] Boot skeleton prevents protected-content flash.
+- [x] Login obtains HttpOnly cookie implicitly and keeps CSRF only in memory.
+- [x] Forced-change account reaches only change-password/logout.
+- [x] Password change replaces session/CSRF and clears all prior user caches.
+- [x] Current-session revoke signs out; other-session revoke updates list.
+- [x] Expiry, account disable, session-version change, and logout clear private state.
+- [x] Switching test identities cannot reveal prior internal comments, worklogs, assets, reports, or notifications.
 
 ### Authorization
 

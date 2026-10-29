@@ -7,12 +7,12 @@ import { createAppQueryClient } from '../app/queryClient.js'
 
 export function renderWithProviders(
   ui,
-  { route = '/', queryClient = createAppQueryClient() } = {},
+  { route = '/', queryClient = createAppQueryClient(), withAuth = false } = {},
 ) {
   const user = userEvent.setup()
   const result = render(
     <ErrorBoundary>
-      <AppProviders queryClient={queryClient}>
+      <AppProviders queryClient={queryClient} withAuth={withAuth}>
         <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
       </AppProviders>
     </ErrorBoundary>,

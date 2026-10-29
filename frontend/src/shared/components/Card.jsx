@@ -21,11 +21,15 @@ export default function Card({ as: Component = 'section', children, className = 
   )
 }
 
-export function CardHeader({ action, children, description, title }) {
+export function CardHeader({ action, children, description, title, titleId }) {
   return (
     <div className="flex items-start justify-between gap-4 max-sm:flex-col">
       <div className="grid min-w-0 gap-1">
-        {title ? <h2 className="text-section font-semibold">{title}</h2> : null}
+        {title ? (
+          <h2 className="text-section font-semibold" id={titleId}>
+            {title}
+          </h2>
+        ) : null}
         {description ? (
           <p className="text-[0.9375rem] text-text-secondary">{description}</p>
         ) : null}

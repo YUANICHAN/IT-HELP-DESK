@@ -18,7 +18,9 @@ export function FieldLayout({
       >
         <span>{label}</span>
         {required ? (
-          <span className="text-meta font-medium text-text-muted">Required</span>
+          <span aria-hidden="true" className="text-meta font-medium text-text-muted">
+            Required
+          </span>
         ) : null}
       </label>
       {children}
