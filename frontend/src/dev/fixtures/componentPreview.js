@@ -1,0 +1,75 @@
+export const previewTickets = Object.freeze([
+  {
+    id: 'preview-ticket-1',
+    reference: 'DF-1048',
+    title: 'New starter laptop setup',
+    category: 'End-user computing',
+    status: 'IN_PROGRESS',
+    priority: 'P2',
+    assetTag: 'AST-LT-2048',
+    updated: '12 minutes ago',
+  },
+  {
+    id: 'preview-ticket-2',
+    reference: 'DF-1047',
+    title: 'Cannot access finance shared drive',
+    category: 'Access and accounts',
+    status: 'WAITING_REQUESTER',
+    priority: 'P3',
+    assetTag: 'Not linked',
+    updated: '38 minutes ago',
+  },
+  {
+    id: 'preview-ticket-3',
+    reference: 'DF-1044',
+    title: 'Meeting room display is offline',
+    category: 'Workplace technology',
+    status: 'NEW',
+    priority: 'P1',
+    assetTag: 'AST-AV-0312',
+    updated: '1 hour ago',
+  },
+  {
+    id: 'preview-ticket-4',
+    reference: 'DF-1039',
+    title: 'Replace damaged keyboard',
+    category: 'End-user computing',
+    status: 'RESOLVED',
+    priority: 'P4',
+    assetTag: 'AST-DT-1182',
+    updated: 'Yesterday',
+  },
+  {
+    id: 'preview-ticket-5',
+    reference: 'DF-1036',
+    title: 'VPN disconnects after sign-in',
+    category: 'Network access',
+    status: 'CLOSED',
+    priority: 'P2',
+    assetTag: 'AST-LT-1720',
+    updated: '2 days ago',
+  },
+  {
+    id: 'preview-ticket-6',
+    reference: 'DF-1034',
+    title: 'Software request needs manager approval',
+    category: 'Software request',
+    status: 'REJECTED',
+    priority: 'P3',
+    assetTag: 'Not linked',
+    updated: '3 days ago',
+  },
+])
+
+export const previewSummary = Object.freeze([
+  { label: 'Active tickets', value: '12', note: '3 updated today', tone: 'info' },
+  { label: 'Waiting for my reply', value: '2', note: 'Oldest is 4 hours', tone: 'warning' },
+  { label: 'Resolved this week', value: '8', note: 'Requester-visible outcomes', tone: 'success' },
+  { label: 'Assigned assets', value: '4', note: '1 warranty ends soon', tone: 'neutral' },
+])
+
+export const previewServiceOptions = Object.freeze([
+  { value: 'hardware', label: 'Hardware support' },
+  { value: 'access', label: 'Access and accounts' },
+  { value: 'software', label: 'Software request' },
+])

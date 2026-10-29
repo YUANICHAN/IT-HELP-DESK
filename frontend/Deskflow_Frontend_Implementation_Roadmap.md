@@ -69,7 +69,7 @@ Complete each step against its acceptance criteria. Add meaningful contract, per
 - Build Button, Input, Select, Textarea, Checkbox, Badge, Card, PageHeader, Dialog, ConfirmDialog, Pagination, and table foundations.
 - Add skeletons, empty/error states, field validation messages, persistent conflict notices, and short confirmation toasts.
 - Include disabled, pending, error, focus, selected, and hover states where relevant.
-- Use semantic native controls where practical. Style substantial isolated components with CSS Modules.
+- Use semantic native controls where practical. Style components with Tailwind utilities backed by the CSS-first semantic theme.
 
 **Complete when**
 
@@ -496,10 +496,7 @@ frontend/
       validation/
         commonSchemas.js
     styles/
-      reset.css
-      tokens.css
-      globals.css
-      utilities.css
+      tailwind.css              # Tailwind import, semantic @theme, shared base behavior
     test/
       setup.js
       server.js
@@ -513,7 +510,7 @@ frontend/
 - `features` own business UI, API calls, queries, mutations, and validation.
 - `shared` contains reusable infrastructure/primitives and imports no feature/page code.
 - Cross-feature orchestration belongs in page/app composition; avoid importing another feature's private implementation.
-- Substantial isolated styles live beside their component, e.g. `TicketConversation.module.css`.
+- Component and page styling uses Tailwind utilities. Keep custom CSS limited to the semantic `@theme`, shared base behavior, and cases utilities cannot express clearly.
 - Keep focused unit/component tests beside the owning behavior. Shared test setup and contract mocks live in `src/test`; browser journeys live in `e2e`.
 - Use PascalCase for JSX components and camelCase for utilities/hooks/modules. Keep plain JS/JSX.
 
@@ -526,7 +523,7 @@ frontend/
 | Server state | TanStack Query | Identity query, tickets, assets, reports, cache invalidation |
 | Authentication facade | AuthProvider | Derived identity/boot state and in-memory CSRF |
 | Forms | React Hook Form + Zod/resolvers | Client usability validation; backend validates again |
-| Styling | CSS variables + CSS Modules | Minimal custom theme with a small owned component set |
+| Styling | Tailwind CSS + CSS-first theme variables | Minimal semantic theme with a small owned component set |
 | Icons | Lucide | Consistent restrained line icons with accessible labels |
 | HTTP | Native fetch wrapper | Cookies, CSRF, envelopes, errors, cancellation |
 | Dates | date-fns where helpful | Display only; no frontend SLA/business-calendar engine |

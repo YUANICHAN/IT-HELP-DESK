@@ -17,6 +17,14 @@ export const routeMeta = Object.freeze({
     kind: 'public-foundation-placeholder',
     authorization: 'not-implemented',
   }),
+  componentPreview: Object.freeze({
+    id: 'component-preview',
+    path: '/dev/components',
+    title: 'Component gallery',
+    registered: import.meta.env.DEV,
+    kind: 'development-only-preview',
+    authorization: 'development-only',
+  }),
   notFound: Object.freeze({
     id: 'not-found',
     path: '*',

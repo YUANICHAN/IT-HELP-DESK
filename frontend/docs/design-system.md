@@ -4,7 +4,7 @@
 
 Deskflow Blue is the approved light-theme direction for the IT Help Desk and Asset Management frontend. It adapts the requested clean service-management reference language to the backend-supported workflows documented in [api-contract.md](api-contract.md). No reference image file is present in the repository, so this specification records the supplied visual requirements rather than claiming pixel comparison against an asset.
 
-This is a design contract, not an implementation. Step 1 does not add CSS, components, fonts, icons, packages, or application screens.
+Step 3 implements this contract through the CSS-first Tailwind theme in `src/styles/tailwind.css`, utility classes in the shared components under `src/shared/components` and `src/shared/feedback`, and the development-only gallery under `src/dev`. The application shell remains intentionally deferred to Step 6.
 
 ## Product character
 
@@ -28,7 +28,7 @@ Avoid decorative browser chrome, a floating application frame, large empty illus
 | Primary / `--color-primary` | `#2563EB` | Primary actions, links, selected controls, focus |
 | Primary hover / `--color-primary-hover` | `#1D4ED8` | Hover/pressed primary controls, active text |
 | Soft blue / `--color-primary-soft` | `#EFF6FF` | Active navigation, selected filters, quiet information |
-| Application background / `--color-bg` | `#F8FAFC` | Main content canvas |
+| Application background / `--color-surface-app` | `#F8FAFC` | Main content canvas |
 | Surface / `--color-surface` | `#FFFFFF` | Sidebar, header, cards, dialogs, inputs |
 | Main text / `--color-text` | `#0F172A` | Headings and body |
 | Secondary text / `--color-text-secondary` | `#475569` | Labels and supporting copy |
@@ -70,15 +70,14 @@ Starting contrast calculations from the approved roadmap are approximately: whit
 
 Spacing scale: 4, 8, 12, 16, 24, 32, and 48 px. Use the scale consistently; do not invent one-off gaps to align individual pages.
 
-Proposed starter tokens for Step 3:
+The implemented core tokens are below. The `@theme` block in `src/styles/tailwind.css` is authoritative and generates matching Tailwind utilities such as `bg-surface`, `text-text-secondary`, `border-control-border`, `rounded-card`, and `shadow-dialog`. It also defines semantic inverse/strong-border roles, typography, focus, control dimensions, restrained dialog elevation, and future Step 6 shell dimensions.
 
 ```css
-:root {
-  color-scheme: light;
+@theme {
   --color-primary: #2563eb;
   --color-primary-hover: #1d4ed8;
   --color-primary-soft: #eff6ff;
-  --color-bg: #f8fafc;
+  --color-surface-app: #f8fafc;
   --color-surface: #ffffff;
   --color-text: #0f172a;
   --color-text-secondary: #475569;
@@ -92,19 +91,17 @@ Proposed starter tokens for Step 3:
   --color-danger: #b91c1c;
   --color-danger-soft: #fee2e2;
   --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --space-12: 48px;
+  --text-page: clamp(1.5rem, 2vw + 1rem, 1.75rem);
+  --text-section: 1.0625rem;
+  --text-table: 0.875rem;
+  --text-meta: 0.8125rem;
   --radius-control: 8px;
   --radius-card: 12px;
   --radius-dialog: 16px;
   --shadow-card: 0 1px 3px rgb(15 23 42 / 0.04);
-  --sidebar-width: 240px;
-  --header-min-height: 64px;
+  --spacing-control: 44px;
+  --spacing-sidebar: 240px;
+  --spacing-header: 64px;
 }
 
 :focus-visible {
@@ -112,6 +109,63 @@ Proposed starter tokens for Step 3:
   outline-offset: 2px;
 }
 ```
+
+## Implemented shared components
+
+Shared components are presentational, use Tailwind utility classes directly, and import no feature or page code. Pages and features own records, callbacks, permissions, fetching, URL state, and mutation behavior. Tailwind 4 is integrated through the official `@tailwindcss/vite` plugin; no JavaScript Tailwind configuration file is required for the CSS-first theme.
+
+| Component | Primary usage | Variants and states | Accessibility behavior |
+| --- | --- | --- | --- |
+| `Button` | Form and page actions | `primary`, `secondary`, `ghost`, `destructive`; disabled and pending | Native button semantics; pending sets `disabled` and `aria-busy`, changes to a visible pending label, and prevents duplicate activation |
+| `IconButton` | Compact recognizable actions | Uses the button variants | Requires a non-empty `label`, supplies an accessible name/title, and retains the normal 44 px target |
+| `Input`, `Select`, `Textarea` | Labelled form fields | Help, required, disabled, and error states; `Select` remains native | Generate stable label/help/error associations, merge caller `aria-describedby`, and set `aria-invalid` for persistent errors |
+| `Checkbox` | Boolean choices | Help, disabled, and error states | Native checkbox inside a clickable visible label; help/error descriptions remain associated |
+| `Card`, `CardHeader` | Surface and section composition | Standard, compact, or no internal padding | Does not impose an incorrect landmark; callers choose the rendered element and heading context |
+| `PageHeader` | One page title, context, and actions | Optional eyebrow, description, and wrapping action group | Renders the page `h1`; actions wrap rather than clip at narrow widths |
+| `Badge` | Explicit operational labels | `neutral`, `info`, `success`, `warning`, `danger` | Always contains visible text; color is reinforcing information, never the only status signal |
+| `DataTable` | Parent-supplied tabular records | Comfortable/compact density, selected, loading, and empty rows | Uses native table/headings/caption semantics; wide content is contained in a named keyboard-scrollable region |
+| `Pagination` | Parent-controlled page requests | Previous/next disabled at bounds; optional result range | Native navigation label, explicit button names, and a polite current-range announcement; never fetches data |
+| `Skeleton`, `Spinner` | Structural and indeterminate loading | Configurable skeleton dimensions and spinner size | Skeleton is decorative; spinner has a screen-reader label unless deliberately embedded as decorative content |
+| `Dialog` | Modal tasks | Small/medium/large; dismissable or safe non-dismissable state | Labelled title/description, initial focus, Tab loop, safe Escape/backdrop behavior, body-scroll lock, and opener focus restoration |
+| `ConfirmDialog` | Consequential confirmation | Primary or destructive confirm, pending state | Places initial focus on Cancel and blocks dismissal/duplicate confirmation while pending |
+| `EmptyState`, `ErrorState` | Valid empty results and load failures | Optional permitted action/retry and safe request ID | Empty data is not announced as an error; failure uses a persistent alert and keeps diagnostics safe |
+| `FormError`, `ConflictNotice` | Required persistent feedback | Field error or version-conflict review action | Errors are linked to fields; conflicts use a polite persistent status rather than a disappearing toast |
+| `ToastProvider` / `useToast` | Brief confirmations | Success and informational messages; bounded queue and duration | Toasts use polite status announcements and provide a labelled dismiss action; never use them as the only conflict/error location |
+
+Typical focused usage:
+
+```jsx
+<Input
+  label="Ticket title"
+  helpText="Summarize the affected service."
+  error={errors.title}
+  required
+/>
+
+<Button pending={isSubmitting} pendingLabel="Submitting ticket…">
+  Submit ticket
+</Button>
+
+<DataTable caption="Authorized tickets" columns={columns} rows={tickets} />
+<Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+```
+
+`DataTable` column renderers may render links or badges, but the component does not infer permissions, fetch rows, choose filters, or make a whole row act like a link. `Pagination` reports the requested page to its parent and does not normalize backend response shapes. Status-to-tone mapping stays with the owning domain so ticket, approval, asset, SLA, attachment, and health vocabularies remain separate.
+
+## Development component gallery
+
+Start Vite and open the gallery:
+
+```powershell
+cd frontend
+npm run dev
+```
+
+Then visit `http://127.0.0.1:5173/dev/components`, or use the **Open component gallery** link on the foundation page. The route is registered only when `import.meta.env.DEV` is true; the production build falls through to the existing not-found route.
+
+The gallery includes synthetic, clearly labelled ticket references, P1–P4 priorities, backend-verified ticket statuses, service-category examples, asset tags, approval decisions, summary cards, controlled pagination, loading/empty/error states, a conflict notice, a keyboard dialog, and a short confirmation toast. Fixtures live in `src/dev/fixtures/componentPreview.js` and are not imported by production feature modules.
+
+The gallery is designed for direct review at 360, 768, 1024, and 1440 px. Wide tables scroll within their own region; the document itself must not gain horizontal overflow. The eventual white sidebar remains flush to the left viewport edge, but its navigation, header, drawer, and responsive policy are Step 6 work.
 
 ## Application shell
 

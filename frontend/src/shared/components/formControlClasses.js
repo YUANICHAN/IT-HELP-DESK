@@ -1,0 +1,2 @@
+export const formControlClasses =
+  'min-h-control w-full rounded-control border border-control-border bg-surface px-3 py-2 leading-[1.35] text-text transition-[border-color,box-shadow] duration-150 placeholder:text-text-muted enabled:hover:border-primary-hover focus-visible:border-primary aria-invalid:border-danger aria-invalid:shadow-[0_0_0_1px_var(--color-danger)] disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-text-muted disabled:opacity-[0.78]'

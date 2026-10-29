@@ -2,7 +2,8 @@
 
 Deskflow is the React 19 and Vite 8 frontend for the repository's IT help desk
 and asset management backend. The codebase intentionally uses plain JavaScript
-and JSX.
+and JSX. Styling uses Tailwind CSS 4 through its official Vite plugin and a
+CSS-first semantic theme in `src/styles/tailwind.css`.
 
 ## Local setup
 
@@ -56,11 +57,19 @@ origin. The full credentialed HTTP client is intentionally deferred to Step 4.
 After a fresh install, run `npx playwright install chromium` once before the
 browser test command.
 
+## Development component gallery
+
+While `npm run dev` is running, open
+`http://127.0.0.1:5173/dev/components` to review the Deskflow Blue tokens,
+controls, tables, states, dialogs, conflict feedback, and toasts. All gallery
+records are labelled synthetic fixtures. The route is development-only and is
+not registered in a production build.
+
 ## Current scope
 
-Step 2 supplies the application bootstrap, shared query client, router
-metadata, root error boundary, public environment validation, baseline styles,
-and test harness. The root page is explicitly a public, non-sensitive
-foundation placeholder. Authentication/permission guards, the HTTP client, the
-responsive application shell, and business features remain unregistered until
-their roadmap steps.
+Steps 2 and 3 supply the application bootstrap, shared query client, router
+metadata, root error boundary, public environment validation, Deskflow Blue
+tokens, reusable UI/feedback components, and the test harness. The root page
+remains an explicitly public, non-sensitive foundation placeholder.
+Authentication/permission guards, the HTTP client, the responsive application
+shell, and business features remain unregistered until their roadmap steps.

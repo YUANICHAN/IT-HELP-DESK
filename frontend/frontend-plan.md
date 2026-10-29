@@ -124,9 +124,11 @@ Install dependencies only when implementation begins:
   `@testing-library/jest-dom`.
 - `msw` for HTTP contract mocks.
 - `playwright` for a small number of browser-level critical journeys.
+- `tailwindcss` and `@tailwindcss/vite` for the CSS-first semantic theme and utility generation.
 
 Do not add a component framework until the product's visual direction is
-approved. Start with accessible project-owned primitives and CSS variables.
+approved. Start with accessible project-owned primitives and semantic Tailwind
+theme variables; Tailwind supplies utilities, not business components.
 
 ## 4. Target folder structure
 
@@ -289,10 +291,7 @@ frontend/
     |   `-- validation/
     |       `-- commonSchemas.js
     |-- styles/
-    |   |-- reset.css
-    |   |-- tokens.css
-    |   |-- globals.css
-    |   `-- utilities.css
+    |   `-- tailwind.css
     `-- test/
         |-- setup.js
         |-- server.js

@@ -1,4 +1,6 @@
 import { Component, Fragment } from 'react'
+import Button from '../shared/components/Button.jsx'
+import Card from '../shared/components/Card.jsx'
 
 export default class ErrorBoundary extends Component {
   state = {
@@ -20,18 +22,20 @@ export default class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <main className="feedback-page">
-          <section className="feedback-card" role="alert">
-            <p className="eyebrow">Deskflow</p>
+        <main className="grid min-h-screen place-items-center p-6">
+          <Card className="w-full max-w-lg" role="alert">
+            <p className="mb-2 text-meta font-bold tracking-[0.08em] text-primary-hover uppercase">
+              Deskflow
+            </p>
             <h1>Something went wrong</h1>
-            <p>
+            <p className="mt-3 text-text-secondary">
               This page could not be displayed. Your error details were not
               exposed.
             </p>
-            <button className="primary-action" onClick={this.handleRecovery} type="button">
+            <Button className="mt-6" onClick={this.handleRecovery}>
               Try again
-            </button>
-          </section>
+            </Button>
+          </Card>
         </main>
       )
     }

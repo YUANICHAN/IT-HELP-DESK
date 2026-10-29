@@ -167,19 +167,67 @@ The first sandboxed Vitest attempt was blocked before collection by Windows `spa
 - Keep `AUTH_ALLOWED_ORIGINS` inclusive of `http://127.0.0.1:5173`; the backend example already contains it.
 - Copy `.env.example` to `.env.local` only when an explicit local file is desired. The checked-in validated defaults are the same.
 - After a fresh checkout, run `npx playwright install chromium` once before browser tests.
-- Step 3 owns the complete tokens and reusable controls/cards/tables/dialogs.
+- Step 3 now supplies the complete tokens and reusable controls/cards/tables/dialogs.
 - Step 4 owns the credentialed HTTP client and server-state API modules.
 - Step 5 owns session bootstrap, auth state, cache clearing, and permission guards.
 - Step 6 owns the responsive application shell. Feature routes remain unregistered until their owning steps.
 
 Step 2 completion decision: **complete**. No foundation blocker remains. The project is ready for **Step 3 — Blue Design System**.
 
+## Step 3 — Blue design system and reusable components
+
+### Implemented theme and shared UI
+
+- [x] Added Tailwind CSS 4.3.3 and the official `@tailwindcss/vite` 4.3.3 integration.
+- [x] Added `src/styles/tailwind.css` with the approved palette and CSS-first `@theme` values for semantic surface/text/border/status roles, system font stack, body/page/section/table typography, radii, restrained shadows, control dimensions, and future shell dimensions.
+- [x] Consolidated reset/preflight, tokens, typography, focus, link/selection defaults, and reduced-motion behavior into the Tailwind entry file.
+- [x] Converted all component, feedback, page, error-boundary, and development-gallery styling from CSS Modules to Tailwind utility classes. No `.module.css` files remain.
+- [x] Added primary, secondary, ghost, and destructive `Button` variants with disabled and duplicate-safe pending states.
+- [x] Added accessible `IconButton`, native `Input`, `Select`, `Textarea`, and `Checkbox` controls with visible labels, required text, help/error descriptions, and invalid state.
+- [x] Added `Card`, `CardHeader`, `PageHeader`, and text-labelled `Badge` primitives.
+- [x] Added semantic parent-controlled `DataTable` and `Pagination`, including selected, loading, empty, compact/comfortable, and bounded-page states. Neither component fetches or applies business permissions.
+- [x] Added reduced-motion-aware `Skeleton` and labelled `Spinner` loading primitives.
+- [x] Added focus-managed `Dialog` and `ConfirmDialog` with title/description association, Tab trapping, safe Escape/backdrop behavior, pending protection, body-scroll lock, and opener focus restoration.
+- [x] Added distinct `EmptyState`, `ErrorState`, `FormError`, persistent `ConflictNotice`, and short polite `ToastProvider` feedback.
+- [x] Registered `ToastProvider` at the application provider boundary without adding business or network state.
+- [x] Restyled the foundation, not-found page, and root error boundary to consume the shared token/component language.
+
+### Development preview and responsive review
+
+- [x] Added the development-only `/dev/components` gallery and a foundation-page link that appears only in development.
+- [x] Kept gallery fixtures in `src/dev/fixtures/componentPreview.js`, separate from production features and explicitly labelled synthetic.
+- [x] Included button variants/states, labelled form validation, backend-verified ticket status examples, P1–P4 priorities, service-category examples, asset tags, approval decisions, summary cards, a controlled ticket table, loading/empty/error states, a conflict notice, a confirmation dialog, and a confirmation toast.
+- [x] Playwright verified no document-level horizontal overflow at 360, 768, and 1440 px; wide tables remain inside a labelled scroll region.
+- [x] Desktop and 360 px full-page renders were inspected. Type hierarchy, white surfaces, pale canvas, blue actions, essential control boundaries, labelled status colors, stacking, and contained table overflow matched the approved direction.
+- [x] Recorded the eventual white flush-left sidebar direction in the design system while leaving sidebar/header/navigation behavior to Step 6.
+- [x] Confirmed the gallery component is excluded from the production bundle and its route is unregistered when `import.meta.env.DEV` is false.
+
+### Focused behavior coverage
+
+- [x] Form controls: visible labels, required state, help text, validation descriptions, and `aria-invalid` associations.
+- [x] Dialogs: accessible title/description, initial focus, Tab wrap, safe non-dismissable Escape state, Escape close, and opener focus restoration.
+- [x] Buttons: enabled activation plus disabled/pending duplicate prevention and `aria-busy`.
+- [x] Data table: caption, column headers, real record link, and selected-row semantics.
+- [x] Pagination: disabled bounds, parent callback, and controlled range update.
+
+### Checks performed on 2026-10-29
+
+- [x] `npm run lint`: passed with no ESLint errors.
+- [x] `npm test`: 8 files and 17 tests passed.
+- [x] `npm run build`: passed after the Tailwind migration; Vite 8.3.5 transformed 2,116 modules and emitted the production bundle.
+- [x] `npm run test:e2e`: 5 Chromium tests passed, covering the foundation, component-preview reflow at three widths, no page overflow, and keyboard dialog close/focus restoration.
+- [x] `git diff --check`: passed; only the repository's existing Windows LF-to-CRLF notices were reported.
+- [x] The first sandboxed Vitest/build attempts were blocked before collection/build by Windows `spawn EPERM`; both passed when Vite's config-loader subprocess was permitted. This was an environment restriction, not an assertion or compilation failure.
+- [x] The temporary visual-review Vite server was stopped after desktop/mobile captures.
+
+Step 3 completion decision: **complete**. No Step 3 blocker remains. The missing reference-image file is documented and did not prevent implementation against the approved written direction. API/data infrastructure remains correctly deferred; the project is ready for **Step 4 — API and Data Layer**.
+
 ## Sequenced readiness for later steps
 
 | Roadmap area | Readiness | Prerequisite before production completion |
 | --- | --- | --- |
 | Step 2 structure/checks | Ready | None beyond package compatibility checks |
-| Step 3 design system | Ready | Rendered contrast/focus/keyboard verification during implementation |
+| Step 3 design system | Complete | None; reuse the implemented tokens and shared components |
 | Step 4 HTTP/server state | Ready | Use same-origin topology; model both pagination shapes |
 | Step 5 auth/security | Ready | Deployment cookie/origin smoke test remains for release |
 | Step 6 shell/navigation | Ready | Navigation must be conservative and permission-aware |
