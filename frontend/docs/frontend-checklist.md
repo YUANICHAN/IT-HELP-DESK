@@ -110,9 +110,9 @@ Step 2 (frontend structure and checks) can begin without guessing the shell/auth
 - [x] Validate public frontend configuration and keep all secrets out of `VITE_*` variables.
 - [x] Establish app/page/shared/test boundaries without implementing business screens ahead of their step.
 - [x] Establish lint, unit/component/browser test, and production-build scripts before feature work expands.
-- [ ] Add a contract-aware HTTP layer in its scheduled step: `credentials: "include"`, JSON envelope/error parsing, in-memory CSRF, safe request IDs, cancellation, no unsafe mutation retry.
-- [ ] Keep permission-sensitive caches memory-only and clear all of them on logout/identity change.
-- [ ] Treat `/auth/me` as the bootstrap source and never persist raw cookies/CSRF/permissions.
+- [x] Add a contract-aware HTTP layer in its scheduled step: `credentials: "include"`, JSON envelope/error parsing, in-memory CSRF, safe request IDs, cancellation, no unsafe mutation retry.
+- [x] Keep permission-sensitive caches memory-only and provide complete private cleanup for logout/identity change wiring.
+- [x] Treat `/auth/me` as the bootstrap source and never persist raw cookies/CSRF/permissions.
 
 Step 2 must not:
 
@@ -168,8 +168,8 @@ The first sandboxed Vitest attempt was blocked before collection by Windows `spa
 - Copy `.env.example` to `.env.local` only when an explicit local file is desired. The checked-in validated defaults are the same.
 - After a fresh checkout, run `npx playwright install chromium` once before browser tests.
 - Step 3 now supplies the complete tokens and reusable controls/cards/tables/dialogs.
-- Step 4 owns the credentialed HTTP client and server-state API modules.
-- Step 5 owns session bootstrap, auth state, cache clearing, and permission guards.
+- Step 4 now supplies the credentialed HTTP client and server-state API conventions.
+- Step 5 owns session bootstrap, auth state, cleanup wiring, and permission guards.
 - Step 6 owns the responsive application shell. Feature routes remain unregistered until their owning steps.
 
 Step 2 completion decision: **complete**. No foundation blocker remains. The project is ready for **Step 3 — Blue Design System**.
@@ -222,13 +222,102 @@ Step 2 completion decision: **complete**. No foundation blocker remains. The pro
 
 Step 3 completion decision: **complete**. No Step 3 blocker remains. The missing reference-image file is documented and did not prevent implementation against the approved written direction. API/data infrastructure remains correctly deferred; the project is ready for **Step 4 — API and Data Layer**.
 
+## Step 4 — API and data layer
+
+### Shared transport and authentication integration
+
+- [x] Added the validated-base-URL HTTP client with credentialed requests,
+  JSON-only content headers, browser-owned multipart boundaries, AbortSignal,
+  verified envelope parsing, `204`/`205`, request metadata, and authenticated
+  blob downloads with safe filenames.
+- [x] Added `ApiError` normalization for status, code, safe message, request ID,
+  validation details, and retry guidance. Cancellation remains distinct from a
+  network/API failure.
+- [x] Added in-memory CSRF replace/clear/read functions, protected-session expiry
+  subscriptions, and protected-request cancellation. No JWT or browser-storage
+  session state was introduced.
+- [x] Added private-query cancellation/removal and mutation-cache cleanup for
+  Step 5 session changes while retaining explicitly public cache entries.
+
+### Query, URL, and mutation conventions
+
+- [x] Completed hierarchical query-key factories for identity, dashboard,
+  ticket detail/timelines/attachments/SLA, assets, approvals, notifications,
+  reports, access grants, audit, and health.
+- [x] Query keys reject secrets, fingerprint raw search text, and remain
+  memory-only. Permission decisions are not given a permanent stale time.
+- [x] Reads retry at most once only for eligible network/temporary server
+  failures; cancellation and `401`, `403`, `404`, conflicts, throttling, and
+  unknown errors do not retry. Mutations have no generic retry.
+- [x] Added exact capability filter allowlists, normalization/issue reporting,
+  canonical URL state, page reset on filter changes, and explicit pagination
+  normalization for `totalPages` versus `pages`.
+- [x] Added stable exact-request serialization, in-memory UUID idempotency,
+  duplicate-submit prevention, exact uncertain retry reuse, changed-input key
+  replacement, stale-version classification, conflict refresh content, and
+  targeted invalidation plans.
+
+### Feature boundaries and focused coverage
+
+- [x] Added representative `auth`, `health`, and `tickets` feature API/query
+  modules with exact request construction and Zod checks at critical response
+  boundaries.
+- [x] Added versioned/idempotent ticket claim and attachment upload conventions.
+  Upload/download reservation, scan/finalization, refetch, and safe filename
+  requirements are documented in [api-contract.md](api-contract.md).
+- [x] MSW/fetch-level tests cover credentials, CSRF, JSON, FormData, empty
+  responses, blobs, envelopes/errors, session expiry, and cancellation.
+- [x] Unit/integration tests cover retry bounds, filter allowlisting, both
+  pagination shapes, query-key privacy, version conflicts, idempotency reuse,
+  targeted invalidation, private cleanup, and an exact ticket command.
+
+### Checks performed on 2026-10-29
+
+- [x] `npm run lint`: passed with no ESLint errors.
+- [x] `npm test`: 15 files and 45 tests passed. Seven shared API/query test
+  files contain 31 focused Step 4 tests; ticket feature-boundary coverage is
+  included in the full total.
+- [x] `npm run build`: passed; Vite 8.3.5 transformed 2,117 modules and emitted
+  the production bundle.
+- [x] `git diff --check`: passed; Git reported only expected Windows
+  LF-to-CRLF working-copy notices.
+- [x] The focused and full client checks use synthetic MSW/fetch fixtures and
+  are explicitly mocked, not evidence of a live database-backed backend.
+- [ ] Live read: `GET http://127.0.0.1:5000/api/v1/health` was attempted with a
+  five-second timeout and the backend was not listening. A Vite proxy read was
+  therefore not claimed. Repeat the documented `/api/v1/health` proxy check
+  when the backend and transaction-capable MongoDB are available.
+
+The first sandboxed Vitest and production-build attempts could not launch
+Vite/Tailwind's Windows helper processes (`spawn EPERM`). The same commands
+passed when those required local subprocesses were permitted; this was an
+execution-environment restriction rather than an assertion or compile failure.
+
+### Remaining dependencies
+
+- [ ] A live proxy read requires the backend and its transaction-capable MongoDB
+  to be running; mocked contract checks do not claim live backend integration.
+- [ ] Cross-origin deployments still require the backend CORS allowlist to add
+  `PATCH` and `Idempotency-Key`; the documented same-origin `/api` topology is
+  the supported path today.
+- [ ] Step 5 must connect auth bootstrap/login/logout/session replacement,
+  redirects, and private UI cleanup to the integration points added here.
+- [ ] Missing authorized service/location/department/user choice endpoints still
+  block the production forms listed in the capability register.
+
+Step 4 completion decision: **complete**. The shared client, session integration
+points, cache lifecycle, query conventions, and representative feature
+boundaries are ready for **Step 5 — Authentication**. Live backend/proxy
+verification remains a release-environment check, not a blocker to the mocked
+contract implementation.
+
 ## Sequenced readiness for later steps
 
 | Roadmap area | Readiness | Prerequisite before production completion |
 | --- | --- | --- |
 | Step 2 structure/checks | Ready | None beyond package compatibility checks |
 | Step 3 design system | Complete | None; reuse the implemented tokens and shared components |
-| Step 4 HTTP/server state | Ready | Use same-origin topology; model both pagination shapes |
+| Step 4 HTTP/server state | Complete | Use the implemented same-origin client and explicit pagination variants |
 | Step 5 auth/security | Ready | Deployment cookie/origin smoke test remains for release |
 | Step 6 shell/navigation | Ready | Navigation must be conservative and permission-aware |
 | Step 7 dashboard/notifications | Ready | No realtime claims; render only returned sections |

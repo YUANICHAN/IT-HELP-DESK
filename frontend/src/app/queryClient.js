@@ -1,17 +1,15 @@
 import { QueryClient } from '@tanstack/react-query'
-
-const NON_RETRYABLE_READ_STATUSES = new Set([401, 403, 404])
-
-function getHttpStatus(error) {
-  return error?.status ?? error?.response?.status
-}
+import { isRetryableReadError } from '../shared/api/apiError.js'
 
 export function shouldRetryQuery(failureCount, error) {
-  if (NON_RETRYABLE_READ_STATUSES.has(getHttpStatus(error))) {
-    return false
-  }
+  return failureCount < 1 && isRetryableReadError(error)
+}
 
-  return failureCount < 1
+export function queryRetryDelay(attemptIndex, error) {
+  if (error?.retryAfterMs != null) {
+    return Math.min(error.retryAfterMs, 5000)
+  }
+  return Math.min(500 * 2 ** attemptIndex, 2000)
 }
 
 export function createAppQueryClient() {
@@ -19,6 +17,10 @@ export function createAppQueryClient() {
     defaultOptions: {
       queries: {
         retry: shouldRetryQuery,
+        retryDelay: queryRetryDelay,
+        refetchOnWindowFocus: true,
+        refetchOnReconnect: true,
+        staleTime: 0,
       },
       mutations: {
         retry: false,

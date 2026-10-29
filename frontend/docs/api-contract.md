@@ -242,3 +242,91 @@ Authorization invariants:
 - Approval fallback is server-side creation behavior, not a separate inbox action.
 - Global search, live chat/realtime delivery, trend-series charts, exports, knowledge base, satisfaction, user management, and master-data settings remain explicit backend dependencies.
 
+## Step 4 frontend client conventions
+
+The shared implementation lives in `src/shared/api`. Feature code imports the
+singleton `httpClient`; tests may create an isolated client with
+`createHttpClient({ baseUrl, fetchImpl })`.
+
+```js
+const result = await httpClient.get('/tickets', {
+  query: apiSearchParams(filters, FILTER_DEFINITIONS.tickets),
+  signal,
+})
+```
+
+- Every request uses the validated public API base URL, sends
+  `credentials: "include"`, and defaults to `Accept: application/json`.
+- JSON bodies are serialized once and receive `Content-Type: application/json`.
+  `FormData` never receives a client-supplied content type, so the browser owns
+  the multipart boundary. `204` and `205` resolve to `null`.
+- JSON success envelopes are unwrapped to their `data` member without changing
+  collection pagination. Callers that need request correlation or replay data
+  use `includeMeta`; authenticated downloads use `responseType: "blob"` and
+  receive `{ blob, filename, contentType, meta }`.
+- Download filenames come from `Content-Disposition` and are stripped of path
+  separators and control characters before UI code may save them.
+- Protected state-changing requests obtain `X-CSRF-Token` only from the
+  in-memory auth integration. Login opts out explicitly. No cookie, CSRF token,
+  permission decision, or idempotency key is persisted in browser storage.
+- A protected `401` notifies the future AuthProvider through
+  `subscribeToSessionExpiry`. `clearPrivateClientState` cancels protected
+  requests, removes only private query families, clears pending mutations, and
+  clears the in-memory CSRF token. Step 5 owns redirects and session screens.
+
+`ApiError` normalizes HTTP status, backend code, safe message, request ID,
+validation details, and parsed `Retry-After`. Authorization/not-found/server
+messages are intentionally generic; validation and verified domain messages
+remain available. Abort errors pass through unchanged and are never read
+retries. Query reads retry at most once, and only for network failures or
+`500`, `502`, `503`, and `504`; mutations never retry automatically.
+
+Query keys are hierarchical and cover identity, dashboards, tickets and their
+timelines/SLA, assets, approvals, notifications, reports, access grants, audit,
+and health. Keys reject secret-bearing fields and fingerprint search text so
+raw free text is not stored in the cache key. The cache is memory-only.
+
+URL helpers use capability-specific allowlists and canonical ordering. Invalid,
+repeated, or unsupported browser URL values are reported and normalized;
+feature API calls reject unresolved issues. A non-page filter change resets
+`page` to `1`. Standard `{ totalPages }` and notification/audit `{ pages }`
+payloads are normalized only when the caller supplies the verified variant,
+and `total` remains distinct from `currentPageCount`.
+
+### Versioned and idempotent commands
+
+Feature mutations serialize the exact allowlisted command once, include the
+current server `expectedVersion`, and obtain an in-memory key from
+`createIdempotencyManager`. A pending command cannot be submitted twice. An
+uncertain network/abort/server result retains the key for an exact-body retry;
+changed input or a completed/definitive result uses a new key. A version conflict
+is recognized only for the verified stale-version codes, refreshes the exact
+detail key, and returns persistent `ConflictNotice` content. Workflow 409s are
+handled separately. The user must review the refreshed version before creating
+a new submission.
+
+Ordinary mutation success invalidates only dependent detail/list families plus
+the relevant dashboard, notification, SLA (under ticket detail), and report
+families. It does not clear the complete cache. Feature modules use the
+`features/<feature>/{api,queries,mutations,schemas}.js` convention; presentational
+components never call the client.
+
+### Attachment ordering
+
+The frontend sends multipart fields `file`, `expectedVersion`, optional
+`visibility`, and optional `commentId`, with CSRF and an idempotency key. The
+backend first writes temporary content, transactionally reserves a `PENDING`
+attachment and bumps the ticket version, scans the content, finalizes storage,
+then transactionally marks it `READY` and bumps the ticket again. Scan or
+finalization failures compensate the reservation and may change the ticket
+version. Therefore every terminal upload result must refresh ticket detail and
+attachments before another command. Retry an uncertain identical upload only
+with the same file object/input and key; after `ATTACHMENT_NOT_READY`, refresh
+metadata and use a new key only for a new reviewed command. Downloads remain
+credentialed and the backend reauthorizes both metadata and content access.
+
+Step 4 intentionally implements representative verified auth, health, ticket
+read, attachment, and claim boundaries rather than speculative modules for
+missing lookup contracts. The lookup, cross-origin CORS, and production service
+dependencies recorded above remain unchanged.
+

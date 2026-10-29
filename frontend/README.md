@@ -40,7 +40,8 @@ Invoke-WebRequest http://127.0.0.1:5173/api/v1/health -UseBasicParsing
 ```
 
 Production should keep the built frontend and `/api/v1` under one browser
-origin. The full credentialed HTTP client is intentionally deferred to Step 4.
+origin. The shared client sends credentialed requests and keeps CSRF and
+idempotency state in memory; authentication lifecycle wiring remains Step 5.
 
 ## Commands
 
@@ -67,9 +68,10 @@ not registered in a production build.
 
 ## Current scope
 
-Steps 2 and 3 supply the application bootstrap, shared query client, router
+Steps 2 through 4 supply the application bootstrap, shared query client, router
 metadata, root error boundary, public environment validation, Deskflow Blue
-tokens, reusable UI/feedback components, and the test harness. The root page
-remains an explicitly public, non-sensitive foundation placeholder.
-Authentication/permission guards, the HTTP client, the responsive application
-shell, and business features remain unregistered until their roadmap steps.
+tokens, reusable UI/feedback components, contract-aware HTTP/data primitives,
+representative feature API boundaries, and the test harness. The root page
+remains an explicitly public, non-sensitive foundation placeholder. Full
+authentication/permission guards, the responsive application shell, and
+connected business pages remain unregistered until their roadmap steps.
